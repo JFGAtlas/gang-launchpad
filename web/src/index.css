@@ -35,8 +35,8 @@ button { cursor: pointer; }
 .bar { height: 56px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(8,8,8,.92); backdrop-filter: blur(6px); z-index: 5; }
 .bar .wrap { display: flex; align-items: center; gap: 28px; height: 100%; }
 .logo { display: inline-flex; align-items: center; color: var(--yellow); }
-.logo-lock { display: inline-flex; align-items: center; gap: 12px; }
-.logo-word { font-size: 24px; line-height: 24px; }
+.logo-lock { display: inline-flex; align-items: center; gap: 6px; }
+.logo-cursor { display: inline-block; width: 6px; height: 21px; background: var(--yellow); animation: blink 1s steps(1) infinite; }
 .nav { display: flex; gap: 22px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
 .nav a.active { color: var(--text); }
 .bar .spacer { flex: 1; }
