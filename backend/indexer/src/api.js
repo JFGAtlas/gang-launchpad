@@ -64,6 +64,9 @@ export function startApi(db, { port = 8787, launchpad }) {
           const res_ = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[url.searchParams.get('res') || '5m'] || 300
           const since = Number(url.searchParams.get('since') || 0)
           const out = []; let cur = null
+          // opening candle at creation so a token with no trades still has a chart (curve opens at 6.25e-9 BNB)
+          const open0 = Number(formatEther(6250000000n)); const t0 = Math.floor(t.created_ts / res_) * res_
+          if (t0 >= since) cur = { t: t0, o: open0, h: open0, l: open0, c: open0, v: 0 }
           for (const r of q.candles.all(res_, res_, addr, since)) {
             const px = Number(formatEther(BigInt(r.price))); const v = Number(formatEther(BigInt(r.bnb)))
             if (!cur || cur.t !== r.t) { if (cur) out.push(cur); cur = { t: r.t, o: px, h: px, l: px, c: px, v } }
