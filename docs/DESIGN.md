@@ -1,10 +1,20 @@
+<!-- gang docs chrome -->
+<pre>
+┌─ GANG / docs ──────────────────────────────────────────┐
+│  DESIGN · pixel terminal + Blur-clean                  │
+│  Fusion Pixel · Geist Mono · 2px frames · #FCD535      │
+│  brand assets: web/public/brand/                       │
+└────────────────────────────────────────────────────────┘
+</pre>
+
 # Gang 设计规范
 
-**参考**：blur.io 的终端气质。一种等宽字体贯穿全站，近黑背景，1px 细线，大写小字标签，密集行情表，几乎没有装饰。品牌色沿用币安黄，表明生态归属。
+**参考**：blur.io 的终端气质 + 像素字标题。标题/数字/区块标题用 **Fusion Pixel**（OFL，按语言加载 latin/hans/hant），正文 **Geist Mono**；近黑背景，2px 直角框、硬阴影、块状进度条；品牌色币安黄 `#FCD535`。
 
 ## 字体
 
-- 全站只用 **Geist Mono**（OFL 开源，气质最接近 Blur 的 Proto Mono），自托管（`@fontsource/geist-mono`），不依赖 Google Fonts。
+- 标题 / 数字 / 区块标题：**Fusion Pixel**（OFL，自托管，按语言加载 latin / hans / hant）。
+- 正文：**Geist Mono**（OFL 开源，气质最接近 Blur 的 Proto Mono），自托管（`@fontsource/geist-mono`），不依赖 Google Fonts。
 - 正文 13px / 20px；表格 12px；微标签 11px 大写、字距 0.08em；标题 24–32px、字重 500、字距 −0.02em；统计数字 22px。
 - 数字启用 `tnum` 等宽对齐。
 
@@ -21,7 +31,7 @@
 
 ## 形态
 
-- 圆角 4px，边框 1px，无阴影无渐变无扫描线。
+- 圆角 0–2px（直角优先），边框 **2px**，硬阴影（右下偏移色块），无渐变无扫描线。
 - 面板标题栏 40px，标题为大写微标签；tab 选中态用浅灰底。
 - 行情表行高 44px，表头大写微标签；曲线进度 3px 细条。
 - 命令框前缀 `$`，复制按钮大写微标签。

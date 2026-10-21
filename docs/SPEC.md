@@ -1,3 +1,13 @@
+<!-- gang docs chrome -->
+<pre>
+┌─ GANG / docs ──────────────────────────────────────────┐
+│  SPEC · curve math & invariants                        │
+│  visual: pixel terminal · #FCD535 · see DESIGN.md      │
+│  status: see STATUS.md (no audit · no multisig ·       │
+│          mainnet full graduation not verified)         │
+└────────────────────────────────────────────────────────┘
+</pre>
+
 # Gang 规格 v1
 
 ## 1. 固定参数
