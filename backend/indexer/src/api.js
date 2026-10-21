@@ -14,6 +14,12 @@ const tokRow = (r) => ({
   trades24h: r.n24, holders: r.holders,
 })
 
+let bnbUsd = 0
+async function pollBnb() {
+  try { const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT'); const j = await r.json(); if (j.price) bnbUsd = Number(j.price) } catch { /* keep last */ }
+}
+pollBnb(); setInterval(pollBnb, 60_000)
+
 export function startApi(db, { port = 8787, launchpad }) {
   const q = {
     list: (order, where = '1=1') => db.prepare(`
@@ -46,7 +52,7 @@ export function startApi(db, { port = 8787, launchpad }) {
         const like = qs.startsWith('0x') ? `${qs}%` : `%${qs}%`
         return json(res, 200, q.search.all(like, like, like).map((r) => ({ address: r.address, name: r.name, symbol: r.symbol, graduated: !!r.graduated, priceBnb: formatEther(BigInt(r.last_price)) })))
       }
-      if (p[0] === 'stats') { const s = q.stats.get(day()); return json(res, 200, { launchpad, ...s, vol24: s.vol24 ? formatEther(BigInt(Math.round(s.vol24))) : '0', fees: s.fees ? formatEther(BigInt(Math.round(s.fees))) : '0' }) }
+      if (p[0] === 'stats') { const s = q.stats.get(day()); return json(res, 200, { launchpad, bnbUsd, ...s, vol24: s.vol24 ? formatEther(BigInt(Math.round(s.vol24))) : '0', fees: s.fees ? formatEther(BigInt(Math.round(s.fees))) : '0' }) }
       if (p[0] === 'tokens' && !p[1]) {
         const sort = url.searchParams.get('sort') || 'new'
         const orders = { new: 'created_ts DESC', hot: 'vol24 DESC, n24 DESC, created_ts DESC', graduated: 'graduated_ts DESC', progress: 'CAST(real_bnb AS REAL) DESC' }

@@ -10,5 +10,5 @@ export const Word = ({ size = 3, color }) => <Px rows={WORD} size={size} color={
 /** single pixel G */
 export const Mark = ({ size = 3, color }) => <Px rows={G} size={size} color={color} />
 export default function Logo() {
-  return <span className="logo-lock" aria-label="GANG"><Word size={3} /><i className="logo-cursor" /></span>
+  return <span className="logo-lock" aria-label="GANG"><Word size={3} /></span>
 }

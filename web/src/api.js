@@ -13,5 +13,14 @@ export const api = {
 export const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '')
 export const ago = (ts) => { if (!ts) return '—'; const s = Math.max(1, Math.floor(Date.now() / 1000 - ts)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d` }
 export const bnb = (v, d = 4) => Number(v).toLocaleString('en-US', { maximumFractionDigits: d })
-export const px = (v) => { const n = Number(v); return n === 0 ? '0' : n < 1e-6 ? n.toExponential(3) : n.toFixed(8) }
+/** DEX-style small number: 0.0000000625 -> 0.0₈625 */
+export const px = (v) => {
+  const n = Number(v); if (!n) return '0'
+  if (n >= 1) return n.toLocaleString('en-US', { maximumFractionDigits: 4 })
+  const s = n.toFixed(18).replace(/0+$/, ''); const m = s.match(/^0\.(0*)(\d+)$/); if (!m) return s
+  const zeros = m[1].length, digits = m[2].slice(0, 4)
+  return zeros >= 3 ? `0.0${String(zeros).replace(/\d/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[d])}${digits}` : `0.${m[1]}${digits}`
+}
+/** compact USD: 4642 -> $4.64K */
+export const usd = (v) => { const n = Number(v); if (!(n > 0)) return '—'; if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`; if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`; if (n >= 1e4) return `$${(n / 1e3).toFixed(1)}K`; if (n >= 1) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`; return `$${px(n)}` }
 export const tok = (v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 })

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, bnb } from '../api.js'
+import { api, bnb, usd } from '../api.js'
 import { useT, Lines } from '../i18n.jsx'
 import TokenTable from '../components/TokenTable.jsx'
 import Cmd from '../components/Cmd.jsx'
@@ -17,13 +17,13 @@ export default function Home() {
     <main className="wrap">
       <section className="hero">
         <span className="tag">BNB Chain · Binance Agentic Wallet</span>
-        <h1 className="cursor">{t('hero_1')}</h1>
+        <h1>{t('hero_1')}</h1>
         <Lines k="hero_2" className="hero-lines" />
         <Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd>
         <div className="stats">
           <div className="stat"><b>{stats.data?.tokens ?? '—'}</b><span>{t('stat_tokens')}</span></div>
           <div className="stat"><b>{stats.data?.graduated ?? '—'}</b><span>{t('stat_graduated')}</span></div>
-          <div className="stat"><b>{stats.data ? bnb(stats.data.vol24, 3) : '—'}</b><span>{t('stat_vol')}</span></div>
+          <div className="stat"><b>{stats.data ? usd(stats.data.vol24 * stats.data.bnbUsd) : '—'}</b><span>{t('stat_vol')}</span></div>
           <div className="stat"><b>{stats.data?.trades ?? '—'}</b><span>{t('stat_trades')}</span></div>
         </div>
       </section>

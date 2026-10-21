@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api, ago, bnb, px, tok, short } from '../api.js'
+import { api, ago, bnb, px, tok, short, usd } from '../api.js'
 import { useT } from '../i18n.jsx'
 import Chart from '../components/Chart.jsx'
 import Cmd from '../components/Cmd.jsx'
@@ -16,6 +16,7 @@ export default function Token() {
   const trades = useQuery({ queryKey: ['trades', address], queryFn: () => api.trades(address, 60) })
   const holders = useQuery({ queryKey: ['holders', address], queryFn: () => api.holders(address, 20) })
   const candles = useQuery({ queryKey: ['candles', address, res], queryFn: () => api.candles(address, res) })
+  const rate = useQuery({ queryKey: ['stats'], queryFn: api.stats }).data?.bnbUsd || 0
   if (q.isLoading) return <main className="wrap"><div className="empty">{t('loading')}</div></main>
   if (q.isError) return <main className="wrap"><div className="empty">{t('not_found')}</div></main>
   const d = q.data
@@ -30,10 +31,10 @@ export default function Token() {
         {d.graduated && <a className="btn" href={`https://pancakeswap.finance/swap?outputCurrency=${d.address}&chain=bsc`} target="_blank" rel="noreferrer">{t('trade_on_pancake')} →</a>}
       </div>
       <div className="kv">
-        <div><span>{t('k_mcap')}</span><b>{bnb(d.fdvBnb, 2)} BNB</b></div>
-        <div><span>{t('k_price')}</span><b>{px(d.priceBnb)}</b></div>
-        <div><span>{t('k_raised')}</span><b>{bnb(d.raisedBnb, 4)} / 20</b></div>
-        <div><span>{t('k_vol')}</span><b>{bnb(d.volume24hBnb || 0, 3)}</b></div>
+        <div><span>{t('k_mcap')}</span><b>{usd(d.fdvBnb * rate)}</b><small>{bnb(d.fdvBnb, 2)} BNB</small></div>
+        <div><span>{t('k_price')}</span><b>{px(d.priceBnb)} BNB</b><small>{usd(d.priceBnb * rate)}</small></div>
+        <div><span>{t('k_raised')}</span><b>{bnb(d.raisedBnb, 4)} / 20 BNB</b><small>{usd(d.raisedBnb * rate)}</small></div>
+        <div><span>{t('k_vol')}</span><b>{usd((d.volume24hBnb || 0) * rate)}</b><small>{bnb(d.volume24hBnb || 0, 4)} BNB</small></div>
         <div><span>{t('k_holders')}</span><b>{d.holders}</b></div>
         <div><span>{t('k_trades')}</span><b>{d.trades}</b></div>
         <div><span>{t('k_created')}</span><b>{ago(d.createdAt)}</b></div>
@@ -45,7 +46,7 @@ export default function Token() {
             <div className="seg">{['mcap', 'price'].map((m) => <button key={m} className={m === mode ? 'on' : ''} onClick={() => setMode(m)}>{t(`chart_${m}`)}</button>)}</div>
             <div className="seg">{['1m', '5m', '15m', '1h', '4h', '1d'].map((r) => <button key={r} className={r === res ? 'on' : ''} onClick={() => setRes(r)}>{r}</button>)}</div>
           </>}>
-            <Chart candles={candles.data} mode={mode} />
+            <Chart candles={candles.data} mode={mode} rate={rate} />
           </Win>
           <Win title={t('buy_title')}>
             {d.graduated ? <p className="muted">{t('sell_note')}</p> : (
@@ -66,7 +67,7 @@ export default function Token() {
                   <tr key={x.tx + x.side}>
                     <td className={x.side === 'buy' ? 'up' : 'down'}>{x.side}</td>
                     <td><a href={`https://bscscan.com/tx/${x.tx}`} target="_blank" rel="noreferrer">{short(x.trader)}</a></td>
-                    <td className="r num">{bnb(x.bnb, 5)}</td><td className="r num">{tok(x.tokens)}</td><td className="r num">{bnb(Number(x.price) * 1e9, 2)}</td><td className="r dim">{ago(x.ts)}</td>
+                    <td className="r num">{bnb(x.bnb, 5)}</td><td className="r num">{tok(x.tokens)}</td><td className="r num">{usd(Number(x.price) * 1e9 * rate)}</td><td className="r dim">{ago(x.ts)}</td>
                   </tr>))}</tbody>
               </table>
             )}
