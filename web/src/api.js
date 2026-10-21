@@ -8,6 +8,7 @@ export const api = {
   trades: (a, limit = 50) => get(`/tokens/${a}/trades?limit=${limit}`),
   holders: (a, limit = 20) => get(`/tokens/${a}/holders?limit=${limit}`),
   candles: (a, res) => get(`/tokens/${a}/candles?res=${res}`),
+  search: (q) => get(`/search?q=${encodeURIComponent(q)}`),
 }
 export const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '')
 export const ago = (ts) => { if (!ts) return '—'; const s = Math.max(1, Math.floor(Date.now() / 1000 - ts)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d` }

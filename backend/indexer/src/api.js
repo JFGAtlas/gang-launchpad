@@ -27,6 +27,8 @@ export function startApi(db, { port = 8787, launchpad }) {
     trades: db.prepare('SELECT side,trader,bnb,fee,tokens,price,block,ts,tx FROM trades WHERE token=? ORDER BY ts DESC, id DESC LIMIT ?'),
     candles: db.prepare(`SELECT (CAST(ts AS INTEGER) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS t, price, bnb, id FROM trades WHERE token=? AND ts>=? ORDER BY id`),
     holders: db.prepare("SELECT holder, balance FROM holders WHERE token=? AND balance!='0' ORDER BY CAST(balance AS REAL) DESC LIMIT ?"),
+    search: db.prepare(`SELECT address, name, symbol, graduated, last_price FROM tokens
+             WHERE lower(address) LIKE ? OR lower(symbol) LIKE ? OR lower(name) LIKE ? ORDER BY trades DESC, created_ts DESC LIMIT 8`),
     stats: db.prepare(`SELECT (SELECT COUNT(*) FROM tokens) AS tokens, (SELECT COUNT(*) FROM tokens WHERE graduated=1) AS graduated,
              (SELECT COUNT(*) FROM trades) AS trades, (SELECT SUM(CAST(bnb AS REAL)) FROM trades WHERE ts>?) AS vol24,
              (SELECT SUM(CAST(fee AS REAL)) FROM trades) AS fees`),
@@ -38,6 +40,12 @@ export function startApi(db, { port = 8787, launchpad }) {
     const url = new URL(req.url, 'http://x'); const p = url.pathname.split('/').filter(Boolean)
     const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200)
     try {
+      if (p[0] === 'search') {
+        const qs = (url.searchParams.get('q') || '').trim().toLowerCase()
+        if (qs.length < 2) return json(res, 200, [])
+        const like = qs.startsWith('0x') ? `${qs}%` : `%${qs}%`
+        return json(res, 200, q.search.all(like, like, like).map((r) => ({ address: r.address, name: r.name, symbol: r.symbol, graduated: !!r.graduated, priceBnb: formatEther(BigInt(r.last_price)) })))
+      }
       if (p[0] === 'stats') { const s = q.stats.get(day()); return json(res, 200, { launchpad, ...s, vol24: s.vol24 ? formatEther(BigInt(Math.round(s.vol24))) : '0', fees: s.fees ? formatEther(BigInt(Math.round(s.fees))) : '0' }) }
       if (p[0] === 'tokens' && !p[1]) {
         const sort = url.searchParams.get('sort') || 'new'

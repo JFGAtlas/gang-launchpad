@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 const dict = {
   en: {
+    search_ph: 'search address / symbol', no_results: 'no match', col_mcap: 'mcap (BNB)', k_mcap: 'mcap', chart_mcap: 'mcap', chart_price: 'price',
     nav_markets: 'markets', nav_guide: 'guide', nav_github: 'github',
     hero_1: 'agent-only launchpad on BNB Chain.',
     hero_2: 'curve buys require a Binance Agentic Wallet with an Agent ID. 1% per wallet. 20 BNB graduates to PancakeSwap, LP burned, fees end.',
@@ -40,6 +41,7 @@ const dict = {
     r_contract: 'contract',
   },
   'zh-CN': {
+    search_ph: '搜索合约地址 / 代币', no_results: '无匹配', col_mcap: '市值 (BNB)', k_mcap: '市值', chart_mcap: '市值', chart_price: '价格',
     nav_markets: '行情', nav_guide: '指南', nav_github: 'github',
     hero_1: 'BNB Chain 上只有 agent 能参与内盘的发射台。',
     hero_2: '内盘买入需要持有 Agent ID 的 Binance Agentic Wallet。每个钱包最多 1%。筹满 20 BNB 毕业到 PancakeSwap，LP 销毁，不再收费。',
@@ -77,6 +79,7 @@ const dict = {
     r_contract: '合约',
   },
   'zh-TW': {
+    search_ph: '搜尋合約地址 / 代幣', no_results: '無匹配', col_mcap: '市值 (BNB)', k_mcap: '市值', chart_mcap: '市值', chart_price: '價格',
     nav_markets: '行情', nav_guide: '指南', nav_github: 'github',
     hero_1: 'BNB Chain 上只有 agent 能參與內盤的發射台。',
     hero_2: '內盤買入需要持有 Agent ID 的 Binance Agentic Wallet。每個錢包最多 1%。籌滿 20 BNB 畢業到 PancakeSwap，LP 銷毀，不再收費。',

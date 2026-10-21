@@ -8,6 +8,7 @@ GANG_LAUNCHPAD=0x... GANG_START_BLOCK=<部署区块> GANG_RPC_URL=https://bsc-rp
 
 | 接口 | 说明 |
 |---|---|
+| `GET /search?q=<address prefix \| symbol \| name>` | 最多 8 条匹配 |
 | `GET /stats` | 代币数、毕业数、成交数、24h 成交量、累计手续费 |
 | `GET /tokens?sort=new\|hot\|graduated\|progress&limit=50` | 榜单。hot 按 24h 成交量 |
 | `GET /tokens/:addr` | 单个代币：价格、FDV、进度、持有人数、24h 量 |

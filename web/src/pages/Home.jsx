@@ -4,6 +4,7 @@ import { api, bnb } from '../api.js'
 import { useT } from '../i18n.jsx'
 import TokenTable from '../components/TokenTable.jsx'
 import Cmd from '../components/Cmd.jsx'
+import Win from '../components/Win.jsx'
 
 const TABS = ['hot', 'new', 'progress', 'graduated']
 
@@ -15,20 +16,21 @@ export default function Home() {
   return (
     <main className="wrap">
       <section className="hero">
-        <div className="line">$ gang --about</div>
-        <h1 className="cursor">{t('hero_1')}</h1>
-        <p>{t('hero_2')}</p>
-        <div className="cmdline"><Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd></div>
+        <div>
+          <span className="tag">BNB CHAIN · BINANCE AGENTIC WALLET</span>
+          <h1 className="cursor">{t('hero_1')}</h1>
+          <p>{t('hero_2')}</p>
+          <Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd>
+        </div>
         <div className="stats">
-          <span><b>{stats.data?.tokens ?? '—'}</b>{t('stat_tokens')}</span>
-          <span><b>{stats.data?.graduated ?? '—'}</b>{t('stat_graduated')}</span>
-          <span><b>{stats.data ? bnb(stats.data.vol24, 3) : '—'}</b>{t('stat_vol')}</span>
+          <div className="stat"><b>{stats.data?.tokens ?? '—'}</b><span>{t('stat_tokens')}</span></div>
+          <div className="stat"><b>{stats.data?.graduated ?? '—'}</b><span>{t('stat_graduated')}</span></div>
+          <div className="stat"><b>{stats.data ? bnb(stats.data.vol24, 3) : '—'}</b><span>{t('stat_vol')}</span></div>
         </div>
       </section>
-      <section className="sec market">
-        <div className="sec-h">gang list <div className="tabs">{TABS.map((k) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`tab_${k}`)}</button>)}</div></div>
+      <Win title={t('nav_markets')} flush right={<div className="tabs">{TABS.map((k) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`tab_${k}`)}</button>)}</div>}>
         <TokenTable rows={q.data} loading={q.isLoading} />
-      </section>
+      </Win>
     </main>
   )
 }
