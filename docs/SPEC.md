@@ -1,10 +1,9 @@
 <!-- gang docs chrome -->
 <pre>
 ┌─ GANG / docs ──────────────────────────────────────────┐
-│  SPEC · curve math & invariants                        │
-│  visual: pixel terminal · #FCD535 · see DESIGN.md      │
-│  status: see STATUS.md (no audit · no multisig ·       │
-│          mainnet full graduation not verified)         │
+│  SPEC · curve math & invariants (appendix)             │
+│  ops: see README · status: fork OK / mainnet grad 未验 │
+│       · no third-party audit · no multisig             │
 └────────────────────────────────────────────────────────┘
 </pre>
 
