@@ -16,16 +16,15 @@ export default function Home() {
   return (
     <main className="wrap">
       <section className="hero">
-        <div>
-          <span className="tag">BNB CHAIN · BINANCE AGENTIC WALLET</span>
-          <h1 className="cursor">{t('hero_1')}</h1>
-          <p>{t('hero_2')}</p>
-          <Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd>
-        </div>
+        <span className="tag">BNB Chain · Binance Agentic Wallet</span>
+        <h1 className="cursor">{t('hero_1')}</h1>
+        <p>{t('hero_2')}</p>
+        <Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd>
         <div className="stats">
           <div className="stat"><b>{stats.data?.tokens ?? '—'}</b><span>{t('stat_tokens')}</span></div>
           <div className="stat"><b>{stats.data?.graduated ?? '—'}</b><span>{t('stat_graduated')}</span></div>
           <div className="stat"><b>{stats.data ? bnb(stats.data.vol24, 3) : '—'}</b><span>{t('stat_vol')}</span></div>
+          <div className="stat"><b>{stats.data?.trades ?? '—'}</b><span>{t('stat_trades')}</span></div>
         </div>
       </section>
       <Win title={t('nav_markets')} flush right={<div className="tabs">{TABS.map((k) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`tab_${k}`)}</button>)}</div>}>

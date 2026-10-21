@@ -9,16 +9,16 @@ export default function Chart({ candles, mode = 'mcap' }) {
   useEffect(() => {
     if (!ref.current) return
     chart.current = createChart(ref.current, {
-      layout: { background: { color: '#10141A' }, textColor: '#5B6672', fontFamily: 'FP Latin, monospace', fontSize: 12, attributionLogo: false },
-      grid: { vertLines: { color: '#1F2730' }, horzLines: { color: '#1F2730' } },
-      rightPriceScale: { borderColor: '#2E3844', scaleMargins: { top: 0.08, bottom: 0.22 } },
-      timeScale: { borderColor: '#2E3844', timeVisible: true, barSpacing: 10, minBarSpacing: 4, rightOffset: 6, fixLeftEdge: false },
+      layout: { background: { color: '#0E0E0E' }, textColor: '#5C5C5C', fontFamily: 'Geist Mono, monospace', fontSize: 11, attributionLogo: false },
+      grid: { vertLines: { color: '#1A1A1A' }, horzLines: { color: '#1A1A1A' } },
+      rightPriceScale: { borderColor: '#1F1F1F', scaleMargins: { top: 0.08, bottom: 0.22 } },
+      timeScale: { borderColor: '#1F1F1F', timeVisible: true, barSpacing: 10, minBarSpacing: 4, rightOffset: 6, fixLeftEdge: false },
       autoSize: true, crosshair: { mode: 0 },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     })
     chart.current._s = {
       c: chart.current.addSeries(CandlestickSeries, { upColor: '#0ECB81', downColor: '#F6465D', borderVisible: false, wickUpColor: '#0ECB81', wickDownColor: '#F6465D' }),
-      v: chart.current.addSeries(HistogramSeries, { priceScaleId: 'vol', color: '#2E3844', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false }),
+      v: chart.current.addSeries(HistogramSeries, { priceScaleId: 'vol', color: '#303030', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false }),
     }
     chart.current.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
     return () => chart.current?.remove()

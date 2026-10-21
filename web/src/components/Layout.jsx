@@ -2,13 +2,14 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useT, LANGS } from '../i18n.jsx'
 import { LAUNCHPAD, short } from '../api.js'
 import Search from './Search.jsx'
+import Logo from './Logo.jsx'
 
 export default function Layout() {
   const { t, lang, setLang } = useT()
   return (
     <>
       <header className="bar"><div className="wrap">
-        <NavLink to="/" className="logo"><span className="blk">GANG</span><span className="at">@bnb</span></NavLink>
+        <NavLink to="/" className="logo"><Logo /></NavLink>
         <nav className="nav">
           <NavLink to="/" end>{t('nav_markets')}</NavLink>
           <NavLink to="/docs">{t('nav_guide')}</NavLink>
