@@ -1,0 +1,30 @@
+import { DatabaseSync } from 'node:sqlite'
+
+export function openDb(path) {
+  const db = new DatabaseSync(path)
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS tokens (
+      address TEXT PRIMARY KEY, name TEXT, symbol TEXT, creator TEXT,
+      created_block INTEGER, created_ts INTEGER, created_tx TEXT,
+      real_bnb TEXT DEFAULT '0', sold TEXT DEFAULT '0', graduated INTEGER DEFAULT 0, pair TEXT,
+      graduated_ts INTEGER, last_price TEXT DEFAULT '0', trades INTEGER DEFAULT 0, last_trade_ts INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT, side TEXT, trader TEXT, bnb TEXT, fee TEXT, tokens TEXT, real_bnb TEXT, price TEXT,
+      block INTEGER, ts INTEGER, tx TEXT, log_index INTEGER,
+      UNIQUE(tx, log_index)
+    );
+    CREATE INDEX IF NOT EXISTS trades_token_ts ON trades(token, ts);
+    CREATE INDEX IF NOT EXISTS trades_ts ON trades(ts);
+    CREATE TABLE IF NOT EXISTS holders (
+      token TEXT, holder TEXT, balance TEXT, PRIMARY KEY(token, holder)
+    );
+  `)
+  return db
+}
+
+export const getMeta = (db, k) => db.prepare('SELECT value FROM meta WHERE key=?').get(k)?.value
+export const setMeta = (db, k, v) => db.prepare('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, String(v))

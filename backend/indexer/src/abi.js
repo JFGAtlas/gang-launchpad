@@ -1,0 +1,6 @@
+export const EVENTS = [
+  { type: 'event', name: 'Created', inputs: [{ name: 'token', type: 'address', indexed: true }, { name: 'creator', type: 'address', indexed: true }, { name: 'name', type: 'string', indexed: false }, { name: 'symbol', type: 'string', indexed: false }] },
+  { type: 'event', name: 'Buy', inputs: [{ name: 'token', type: 'address', indexed: true }, { name: 'buyer', type: 'address', indexed: true }, { name: 'bnbIn', type: 'uint256', indexed: false }, { name: 'fee', type: 'uint256', indexed: false }, { name: 'tokensOut', type: 'uint256', indexed: false }, { name: 'realBnb', type: 'uint256', indexed: false }] },
+  { type: 'event', name: 'Sell', inputs: [{ name: 'token', type: 'address', indexed: true }, { name: 'seller', type: 'address', indexed: true }, { name: 'tokensIn', type: 'uint256', indexed: false }, { name: 'fee', type: 'uint256', indexed: false }, { name: 'bnbOut', type: 'uint256', indexed: false }, { name: 'realBnb', type: 'uint256', indexed: false }] },
+  { type: 'event', name: 'Graduated', inputs: [{ name: 'token', type: 'address', indexed: true }, { name: 'pair', type: 'address', indexed: true }, { name: 'tokenAmount', type: 'uint256', indexed: false }, { name: 'bnbAmount', type: 'uint256', indexed: false }] },
+]

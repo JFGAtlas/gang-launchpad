@@ -1,0 +1,104 @@
+import { createPublicClient, http, parseAbiItem } from 'viem'
+import { bsc } from 'viem/chains'
+import { EVENTS } from './abi.js'
+import { getMeta, setMeta } from './db.js'
+
+const VIRTUAL_BNB = 6666666666666666667n
+const VIRTUAL_TOKEN = 1066666666666666666666666667n
+const price = (realBnb, sold) => ((VIRTUAL_BNB + realBnb) * 10n ** 18n) / (VIRTUAL_TOKEN - sold) // wei per token
+
+export class Indexer {
+  constructor({ db, rpc, launchpad, startBlock, batch = 1000, log = console.log }) {
+    this.db = db; this.launchpad = launchpad; this.startBlock = BigInt(startBlock); this.batch = BigInt(batch); this.log = log
+    this.client = createPublicClient({ chain: bsc, transport: http(rpc, { retryCount: 3, retryDelay: 800 }) })
+    this.blockTs = new Map()
+    this.stmts = {
+      insTok: db.prepare('INSERT OR IGNORE INTO tokens(address,name,symbol,creator,created_block,created_ts,created_tx,last_price) VALUES(?,?,?,?,?,?,?,?)'),
+      updTok: db.prepare('UPDATE tokens SET real_bnb=?, sold=?, last_price=?, trades=trades+1, last_trade_ts=? WHERE address=?'),
+      grad: db.prepare('UPDATE tokens SET graduated=1, pair=?, graduated_ts=?, real_bnb=\'0\' WHERE address=?'),
+      insTrade: db.prepare('INSERT OR IGNORE INTO trades(token,side,trader,bnb,fee,tokens,real_bnb,price,block,ts,tx,log_index) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'),
+      getSold: db.prepare('SELECT sold FROM tokens WHERE address=?'),
+      holder: db.prepare('INSERT INTO holders(token,holder,balance) VALUES(?,?,?) ON CONFLICT(token,holder) DO UPDATE SET balance=excluded.balance'),
+      getHolder: db.prepare('SELECT balance FROM holders WHERE token=? AND holder=?'),
+    }
+  }
+
+  async retry(fn, tries = 6) {
+    for (let i = 0; ; i++) {
+      try { return await fn() } catch (e) { if (i >= tries) throw e; await new Promise((r) => setTimeout(r, 400 * 2 ** i)) }
+    }
+  }
+
+  async ts(blockNumber) {
+    if (!this.blockTs.has(blockNumber)) {
+      const b = await this.retry(() => this.client.getBlock({ blockNumber }))
+      this.blockTs.set(blockNumber, Number(b.timestamp))
+      if (this.blockTs.size > 5000) this.blockTs.delete(this.blockTs.keys().next().value)
+    }
+    return this.blockTs.get(blockNumber)
+  }
+
+  async syncOnce() {
+    const head = await this.retry(() => this.client.getBlockNumber())
+    let from = BigInt(getMeta(this.db, 'last_block') ?? (this.startBlock - 1n)) + 1n
+    let span = this.batch
+    while (from <= head) {
+      const to = from + span - 1n > head ? head : from + span - 1n
+      let logs
+      try {
+        logs = await this.client.getLogs({ address: this.launchpad, events: EVENTS, fromBlock: from, toBlock: to })
+      } catch (e) {
+        if (/limit|range|too many|exceed/i.test(e.message) && span > 50n) { span /= 2n; this.log(`getLogs limited, span -> ${span}`); await new Promise((r) => setTimeout(r, 500)); continue }
+        throw e
+      }
+      logs.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : Number(a.blockNumber - b.blockNumber)))
+      for (const l of logs) await this.apply(l)
+      setMeta(this.db, 'last_block', to)
+      if (logs.length) this.log(`synced ${from}-${to}: ${logs.length} events`)
+      from = to + 1n
+      if (span < this.batch) span = span * 2n > this.batch ? this.batch : span * 2n
+      await new Promise((r) => setTimeout(r, 120))
+    }
+    return head
+  }
+
+  async apply(l) {
+    const a = l.args; const ts = await this.ts(l.blockNumber); const tok = a.token.toLowerCase()
+    switch (l.eventName) {
+      case 'Created':
+        this.stmts.insTok.run(tok, a.name, a.symbol, a.creator.toLowerCase(), Number(l.blockNumber), ts, l.transactionHash, price(0n, 0n).toString())
+        break
+      case 'Buy': {
+        const sold = BigInt(this.stmts.getSold.get(tok)?.sold ?? '0') + a.tokensOut
+        const p = price(a.realBnb, sold)
+        this.stmts.insTrade.run(tok, 'buy', a.buyer.toLowerCase(), a.bnbIn.toString(), a.fee.toString(), a.tokensOut.toString(), a.realBnb.toString(), p.toString(), Number(l.blockNumber), ts, l.transactionHash, l.logIndex)
+        this.stmts.updTok.run(a.realBnb.toString(), sold.toString(), p.toString(), ts, tok)
+        this.bump(tok, a.buyer.toLowerCase(), a.tokensOut)
+        break
+      }
+      case 'Sell': {
+        const sold = BigInt(this.stmts.getSold.get(tok)?.sold ?? '0') - a.tokensIn
+        const p = price(a.realBnb, sold)
+        this.stmts.insTrade.run(tok, 'sell', a.seller.toLowerCase(), a.bnbOut.toString(), a.fee.toString(), a.tokensIn.toString(), a.realBnb.toString(), p.toString(), Number(l.blockNumber), ts, l.transactionHash, l.logIndex)
+        this.stmts.updTok.run(a.realBnb.toString(), sold.toString(), p.toString(), ts, tok)
+        this.bump(tok, a.seller.toLowerCase(), -a.tokensIn)
+        break
+      }
+      case 'Graduated':
+        this.stmts.grad.run(a.pair.toLowerCase(), ts, tok)
+        break
+    }
+  }
+
+  bump(token, holder, delta) {
+    const cur = BigInt(this.stmts.getHolder.get(token, holder)?.balance ?? '0')
+    this.stmts.holder.run(token, holder, (cur + delta).toString())
+  }
+
+  async run(intervalMs = 3000) {
+    for (;;) {
+      try { await this.syncOnce() } catch (e) { this.log('sync error:', e.message) }
+      await new Promise((r) => setTimeout(r, intervalMs))
+    }
+  }
+}
