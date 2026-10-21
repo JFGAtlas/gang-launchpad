@@ -2,7 +2,11 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import '@fontsource/ibm-plex-mono/400.css'
+import '@fontsource/ibm-plex-mono/500.css'
+import '@fontsource/ibm-plex-mono/600.css'
 import './index.css'
+import { I18nProvider } from './i18n.jsx'
 import Layout from './components/Layout.jsx'
 import Home from './pages/Home.jsx'
 import Token from './pages/Token.jsx'
@@ -12,16 +16,18 @@ const qc = new QueryClient({ defaultOptions: { queries: { refetchInterval: 5000,
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <QueryClientProvider client={qc}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="/token/:address" element={<Token />} />
-            <Route path="/docs" element={<Docs />} />
-            <Route path="*" element={<div className="wrap empty">Not found</div>} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <I18nProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="/token/:address" element={<Token />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="*" element={<main className="wrap"><div className="empty">404</div></main>} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </I18nProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 )

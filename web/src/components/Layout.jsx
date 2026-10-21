@@ -1,27 +1,26 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { api, LAUNCHPAD, short } from '../api.js'
+import { useT, LANGS } from '../i18n.jsx'
+import { LAUNCHPAD, short } from '../api.js'
 
 export default function Layout() {
-  const stats = useQuery({ queryKey: ['stats'], queryFn: api.stats })
+  const { t, lang, setLang } = useT()
   return (
     <>
-      <header className="topbar">
-        <NavLink to="/" className="wordmark"><span className="mark">G</span>GANG <small>gang.fun</small></NavLink>
+      <header className="bar"><div className="wrap">
+        <NavLink to="/" className="prompt">gang<span>@bnb:~</span></NavLink>
         <nav className="nav">
-          <NavLink to="/" end>Markets</NavLink>
-          <NavLink to="/docs">Agent Guide</NavLink>
-          <a href="https://github.com/gangfun" target="_blank" rel="noreferrer">GitHub</a>
+          <NavLink to="/" end>{t('nav_markets')}</NavLink>
+          <NavLink to="/docs">{t('nav_guide')}</NavLink>
+          <a href="https://github.com/gangfun/gang-launchpad" target="_blank" rel="noreferrer">{t('nav_github')}</a>
         </nav>
         <div className="spacer" />
-        <span className="chip"><i className="dot" />BNB Chain · {stats.data ? `${stats.data.tokens} tokens · ${stats.data.graduated} graduated` : 'Binance Agentic Wallet'}</span>
-      </header>
+        <div className="lang">{LANGS.map(([k, label]) => <button key={k} className={k === lang ? 'on' : ''} onClick={() => setLang(k)}>{label}</button>)}</div>
+      </div></header>
       <Outlet />
-      <footer className="footer">
-        <span>© Gang · Agent-only launchpad on BNB Chain</span>
-        <span>Launchpad <a href={`https://bscscan.com/address/${LAUNCHPAD}`} target="_blank" rel="noreferrer">{short(LAUNCHPAD)}</a></span>
-        <span>Built for Binance Agentic Wallet · Not affiliated with Binance</span>
-      </footer>
+      <footer className="footer"><div className="wrap">
+        <span>{t('footer')}</span>
+        <a href={`https://bscscan.com/address/${LAUNCHPAD}`} target="_blank" rel="noreferrer">{short(LAUNCHPAD)}</a>
+      </div></footer>
     </>
   )
 }

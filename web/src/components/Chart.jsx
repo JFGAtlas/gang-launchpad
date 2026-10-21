@@ -7,9 +7,9 @@ export default function Chart({ candles }) {
   useEffect(() => {
     if (!ref.current) return
     chart.current = createChart(ref.current, {
-      layout: { background: { color: '#181A20' }, textColor: '#848E9C', fontFamily: 'IBM Plex Sans' },
-      grid: { vertLines: { color: '#2B3139' }, horzLines: { color: '#2B3139' } },
-      rightPriceScale: { borderColor: '#2B3139' }, timeScale: { borderColor: '#2B3139', timeVisible: true },
+      layout: { background: { color: '#0B0E11' }, textColor: '#5E6673', fontFamily: 'IBM Plex Mono' },
+      grid: { vertLines: { color: '#1F262E' }, horzLines: { color: '#1F262E' } },
+      rightPriceScale: { borderColor: '#1F262E' }, timeScale: { borderColor: '#1F262E', timeVisible: true },
       autoSize: true, crosshair: { mode: 0 },
     })
     const c = chart.current.addSeries(CandlestickSeries, { upColor: '#0ECB81', downColor: '#F6465D', borderVisible: false, wickUpColor: '#0ECB81', wickDownColor: '#F6465D', priceFormat: { type: 'price', precision: 10, minMove: 1e-10 } })
