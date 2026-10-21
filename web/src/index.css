@@ -127,10 +127,15 @@ td.r, th.r { text-align: right; }
 .pwide i { display: block; height: 100%; background: var(--yellow); }
 .pwide.done i { background: var(--green); }
 .pwide span { display: none; }
-.work { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+/* 2×2 grid: row 1 = chart | how-to (equal height), row 2 = trades | holders (equal height). all edges line up. */
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto; gap: 16px; align-items: stretch; }
 .work > * { min-width: 0; }
-.stack { display: grid; gap: 16px; align-content: start; }
-.chart { height: 360px; }
+/* chart fills the card body but never drives its size (absolute), so row height comes from the how-to card */
+.win > .b.chart-body { position: relative; min-height: 360px; }
+.chart { position: absolute; inset: 0; }
+.win { display: flex; flex-direction: column; }
+.win > .b { flex: 1; display: flex; flex-direction: column; }
+.win > .b > .empty { flex: 1; display: flex; align-items: center; justify-content: center; }
 .seg { display: flex; gap: 2px; }
 .seg button { height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
 .seg button.on { color: #000; background: var(--yellow); }
@@ -161,6 +166,6 @@ td.r, th.r { text-align: right; }
   .bar .wrap { gap: 12px; } .bar .nav { gap: 12px; } .bar .lang { display: none; } .search { width: 140px; }
   .hero { padding: 28px 0 20px; } .hero h1 { font-size: 24px; line-height: 32px; }
   .market-scroll { overflow-x: auto; } .market-scroll table { min-width: 760px; }
-  .chart { height: 260px; }
+  .win > .b.chart-body { min-height: 260px; }
   .ident .addr { word-break: break-all; }
 }

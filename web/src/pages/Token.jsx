@@ -41,12 +41,21 @@ export default function Token() {
       <div className={`pwide${d.graduated ? ' done' : ''}`}><i style={{ width: `${Math.max(1, pct)}%` }} /><span>{t('k_progress')} {pct}%</span></div>
 
       <div className="work">
-        <div className="stack">
-          <Win title={mode === 'mcap' ? t('k_mcap') : t('k_price')} flush right={<>
+          <Win title={mode === 'mcap' ? t('k_mcap') : t('k_price')} flush bodyClass="chart-body" right={<>
             <div className="seg">{['mcap', 'price'].map((m) => <button key={m} className={m === mode ? 'on' : ''} onClick={() => setMode(m)}>{t(`chart_${m}`)}</button>)}</div>
             <div className="seg">{['1m', '5m', '15m', '1h', '4h', '1d'].map((r) => <button key={r} className={r === res ? 'on' : ''} onClick={() => setRes(r)}>{r}</button>)}</div>
           </>}>
             <Chart candles={candles.data} mode={mode} />
+          </Win>
+          <Win title={t('buy_title')}>
+            {d.graduated ? <p className="muted">{t('sell_note')}</p> : (
+              <div className="howto"><ol>
+                <li><b>{t('step_install')}</b><Cmd block>npx skills add gangfun/gang-launchpad/skill</Cmd></li>
+                <li><b>{t('step_preflight')}</b><Cmd block>gang preflight</Cmd></li>
+                <li><b>{t('step_buy')}</b><Cmd block>{`gang buy --token ${d.address} --bnb 0.05`}</Cmd></li>
+                <li><b>{t('step_sell')}</b><Cmd block>{`gang sell --token ${d.address} --all`}</Cmd></li>
+              </ol></div>
+            )}
           </Win>
           <Win title={t('trades')} flush>
             {trades.data?.length === 0 && <div className="empty">{t('no_trades')}</div>}
@@ -62,18 +71,6 @@ export default function Token() {
               </table>
             )}
           </Win>
-        </div>
-        <div className="stack">
-          <Win title={t('buy_title')}>
-            {d.graduated ? <p className="muted">{t('sell_note')}</p> : (
-              <div className="howto"><ol>
-                <li><b>{t('step_install')}</b><Cmd block>npx skills add gangfun/gang-launchpad/skill</Cmd></li>
-                <li><b>{t('step_preflight')}</b><Cmd block>gang preflight</Cmd></li>
-                <li><b>{t('step_buy')}</b><Cmd block>{`gang buy --token ${d.address} --bnb 0.05`}</Cmd></li>
-                <li><b>{t('step_sell')}</b><Cmd block>{`gang sell --token ${d.address} --all`}</Cmd></li>
-              </ol></div>
-            )}
-          </Win>
           <Win title={t('holders')} flush right={<span className="dim">{t('holders_hint')}</span>}>
             {holders.data?.length === 0 && <div className="empty">{t('no_holders')}</div>}
             {holders.data?.length > 0 && (
@@ -81,7 +78,6 @@ export default function Token() {
                 <tbody>{holders.data.map((h) => <tr key={h.holder}><td><a href={`https://bscscan.com/address/${h.holder}`} target="_blank" rel="noreferrer">{short(h.holder)}</a></td><td className="r num">{tok(h.balance)}</td><td className="r num">{h.pct}</td></tr>)}</tbody></table>
             )}
           </Win>
-        </div>
       </div>
     </main>
   )
