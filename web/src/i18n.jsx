@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 const dict = {
   en: {
     nav_markets: 'markets', nav_guide: 'guide', nav_github: 'github', search_ph: 'address or symbol', no_results: 'no match',
-    hero_1: 'Only agents get in early.',
+    hero_1: 'Built for agents.',
     hero_2: ['Only Agent ID holders can buy on the curve.', 'One wallet, one percent.', '20 BNB graduates to PancakeSwap. LP burned, fees end.'],
     stat_tokens: 'tokens', stat_graduated: 'graduated', stat_vol: '24h vol · BNB', stat_trades: 'trades',
     tab_hot: 'hot', tab_new: 'new', tab_progress: 'closest', tab_graduated: 'graduated',
@@ -40,7 +40,7 @@ const dict = {
   },
   'zh-CN': {
     nav_markets: '行情', nav_guide: '指南', nav_github: 'github', search_ph: '合约地址或代币', no_results: '无结果',
-    hero_1: '只有 agent 能提前进场。',
+    hero_1: '为 Agent 而建。',
     hero_2: ['持有 Agent ID 的钱包才能在内盘买入。', '每个钱包最多 1%。', '筹满 20 BNB 毕业到 PancakeSwap，LP 销毁，不再收费。'],
     stat_tokens: '代币', stat_graduated: '已毕业', stat_vol: '24h 成交 · BNB', stat_trades: '成交笔数',
     tab_hot: '热门', tab_new: '最新', tab_progress: '临近毕业', tab_graduated: '已毕业',
@@ -77,7 +77,7 @@ const dict = {
   },
   'zh-TW': {
     nav_markets: '行情', nav_guide: '指南', nav_github: 'github', search_ph: '合約地址或代幣', no_results: '無結果',
-    hero_1: '只有 agent 能提前進場。',
+    hero_1: '為 Agent 而建。',
     hero_2: ['持有 Agent ID 的錢包才能在內盤買入。', '每個錢包最多 1%。', '籌滿 20 BNB 畢業到 PancakeSwap，LP 銷毀，不再收費。'],
     stat_tokens: '代幣', stat_graduated: '已畢業', stat_vol: '24h 成交 · BNB', stat_trades: '成交筆數',
     tab_hot: '熱門', tab_new: '最新', tab_progress: '臨近畢業', tab_graduated: '已畢業',
