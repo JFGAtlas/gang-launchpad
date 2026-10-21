@@ -34,9 +34,9 @@
 | 1 BNB 在已筹 10 BNB 时可买 | ≈ 2415 万 |
 | 1 BNB 在已筹 19 BNB 时可买 | ≈ 1039 万 |
 
-## 3. 买入 `buy(token, minTokensOut, nonce, deadline, sig)`
+## 3. 买入 `buy(token, minTokensOut)`
 
-1. 门禁：`sig` 为空则要求 `isAgent(msg.sender)`；否则校验 EIP-712 凭证。
+1. 门禁：`isAgent(msg.sender)`，即 Agent ID `balanceOf(msg.sender) > 0`。
 2. 钱包上限：`room = MAX_PER_WALLET − balanceOf(msg.sender)`，为 0 则 revert `WalletCapReached`。内盘期间转账锁定，所以余额即净持仓；卖出后额度恢复。
 3. `fee = msg.value × 100 / 10000`，`bnbIn = msg.value − fee`。
 4. 毕业上限：若 `realBnb + bnbIn > 20 ether`，`bnbIn = 20 ether − realBnb`。
@@ -68,7 +68,7 @@ PancakeSwap V2 Router（BSC 主网）：`0x10ED43C718714eb63d5aA57B78B54704E2560
 
 ## 6. 转账锁
 
-`LaunchToken` 在 `locked == true` 时仅允许 `from` 或 `to` 为 Launchpad 合约的转账。毕业时由 Launchpad 调 `unlock()`，不可逆。
+`LaunchToken` 在 `locked == true` 时仅允许 `from == Launchpad`（曲线卖出代币给买家）或 `msg.sender == Launchpad`（曲线回收代币）。毕业时由 Launchpad 调 `unlock()`，不可逆。
 
 ## 7. 门禁
 
@@ -87,27 +87,33 @@ Binance Wallet 领取 .ai Agent ID 时会在 BSC 上 mint 一个 **soulbound ERC
 
 因为 mint 需要后端签名、且 NFT 不可转让，`agentIdRegistry.balanceOf(msg.sender) > 0` 即可作为"调用者是 Binance Agentic Wallet"的链上证明。`buy()` 传空 `sig` 走此路径。
 
-### 7b. 凭证（EIP-712，备用路径）
+### 7b. 管理员权限（加固后）
 
-```
-Voucher(address buyer,address token,uint256 nonce,uint256 deadline)
-domain: name="Gang", version="1", chainId=56, verifyingContract=Launchpad
-```
+| 函数 | 约束 |
+|---|---|
+| `setMigrator` | 只能设置一次，之后永久不可变；`create()` 在未设置前拒绝。 |
+| `proposeAgentIdRegistry` / `applyAgentIdRegistry` / `cancelAgentIdRegistry` | 注册表变更需 24 小时时间锁，提案即发事件。 |
+| `setFeeVault` | 仅影响平台手续费去向。 |
+| `collectFees` / `sweepExcess` / `withdraw` | 任何人可调；`sweepExcess` 只能动 `balance − totalRealBnb − accruedFees − totalPending` 这部分被强塞进来的 BNB。 |
 
-`buy()` 传非空 `sig` 走此路径。用于两种情况：Agent ID 尚未领取的 AW 用户（后端通过 `sign-message` challenge 核验后签发），以及 owner 把 `agentIdRegistry` 设为 0 强制走凭证时。`VOUCHER_SIGNER` 可由 owner 轮换。
+凭证（voucher）路径已删除：门禁只认链上 Agent ID，平台方没有任何"签个字就能买"的后门。
+
+### 7c. 付款兜底
+
+退款和卖出付款用 `_pay`：`call` 失败（例如合约钱包没有 `receive`）时不回滚，而是记入 `pendingWithdrawals[to]`，由对方自行 `withdraw()`。这保证触发毕业的最后一笔买入不会因为买家收不到退款而失败。
 
 ## 8. 不变量（fuzz 目标）
 
 - `(vB + realBnb) × (vT − sold) >= k`（取整只对协议有利）
 - `realBnb <= 20 ether`，`sold <= CURVE_SUPPLY`
 - 任意地址 `balanceOf <= MAX_PER_WALLET`（毕业前）
-- 合约 BNB 余额 == Σ realBnb（所有未毕业代币）
+- 合约 BNB 余额 == totalRealBnb + accruedFees + totalPending
 - 任意买后立即卖，用户 BNB 不增加
 - 毕业后 Launchpad 对该代币余额为 0，曲线函数全部 revert
 
 ## 9. 实现备注
 
 - **迁移绕过 Router，直接对 Pair 操作**：Migrator 先 `createPair`（若不存在），把 WBNB 和代币直接转入 pair 后调用 `pair.mint(0xdEaD)`。原因：若走 `router.addLiquidityETH`，攻击者可以在毕业前向 pair 捐 WBNB 并调用 `sync()`，使储备变成"只有 WBNB 没有代币"，Router 的 `quote()` 会 revert，毕业永久失败。直接 mint 时捐赠只会变成被销毁的额外流动性。fork 测试 `test_graduation_survivesWbnbDonationGriefing` 覆盖此场景。
-- **代币转账锁使 pair 在毕业前不可能持有代币**，所以不存在"毕业前 pair 已有代币储备导致价格偏离"的问题。
+- **代币转账锁使 pair 在毕业前不可能持有代币**，所以不存在"毕业前 pair 已有代币储备导致价格偏离"的问题。锁的规则是：`from` 必须是 Launchpad，或者 `msg.sender` 是 Launchpad（即 `sell` 里的 `transferFrom`）。持有人连"转回 Launchpad"都不行，因此 Launchpad 持仓恒等于 `TOTAL_SUPPLY − sold`，毕业时也用这个值而不是 `balanceOf`。
 - **手续费采用 pull 模式**：先累计在 `accruedFees`，任何人可调 `collectFees()` 推到金库，避免金库合约异常导致买卖失败。
 - **取整方向**：`_tokensOut` 与 `_bnbOut` 都用 `ceilDiv` 计算新储备，保证 `(vB+realBnb)(vT−sold) ≥ k` 恒成立，取整只对协议有利。

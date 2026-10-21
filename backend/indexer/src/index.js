@@ -4,7 +4,7 @@ import { startApi } from './api.js'
 
 const cfg = {
   rpc: process.env.GANG_RPC_URL || 'https://bsc-dataseed.binance.org',
-  launchpad: process.env.GANG_LAUNCHPAD || '0x63ec44bC7CC8f3572AC3b3CC5fd4697C27bB55fd',
+  launchpad: process.env.GANG_LAUNCHPAD || '0xBfBB10db587DdFDF38c888cB80C5124f1Aa3C0Eb',
   startBlock: Number(process.env.GANG_START_BLOCK || 0),
   db: process.env.GANG_DB || './gang.db',
   port: Number(process.env.PORT || 8787),

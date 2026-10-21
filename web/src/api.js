@@ -1,5 +1,5 @@
 export const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8787'
-export const LAUNCHPAD = import.meta.env.VITE_LAUNCHPAD || '0x63ec44bC7CC8f3572AC3b3CC5fd4697C27bB55fd'
+export const LAUNCHPAD = import.meta.env.VITE_LAUNCHPAD || '0xBfBB10db587DdFDF38c888cB80C5124f1Aa3C0Eb'
 const get = (p) => fetch(`${API}${p}`).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json() })
 export const api = {
   stats: () => get('/stats'),

@@ -5,25 +5,24 @@ import {Test} from "forge-std/Test.sol";
 import {BaseTest} from "./Base.t.sol";
 import {Launchpad} from "../src/Launchpad.sol";
 import {LaunchToken} from "../src/LaunchToken.sol";
+import {MockAgentId} from "./mocks/MockAgentId.sol";
 
 contract Handler is Test {
     Launchpad public pad;
     LaunchToken public tok;
-    uint256 internal signerPk;
-    uint256 internal nonce = 1;
     address[] public actors;
 
     uint256 public ghostFeesPaid;
     uint256 public ghostBnbIn;
     uint256 public ghostBnbOut;
 
-    constructor(Launchpad _pad, LaunchToken _tok, uint256 _signerPk) {
+    constructor(Launchpad _pad, LaunchToken _tok, MockAgentId reg) {
         pad = _pad;
         tok = _tok;
-        signerPk = _signerPk;
         for (uint256 i; i < 5; i++) {
             address a = address(uint160(0x1000 + i));
             actors.push(a);
+            reg.mint(a, 9000 + i);
             vm.deal(a, 100 ether);
         }
     }
@@ -35,13 +34,10 @@ contract Handler is Test {
         value = bound(value, 1, 5 ether);
         if (a.balance < value) return;
         if (pad.walletRoom(address(tok), a) == 0) return;
-        uint256 n = nonce++;
-        bytes32 digest = pad.voucherDigest(a, address(tok), n, block.timestamp + 1);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
         (,, uint256 fee,) = pad.quoteBuy(address(tok), a, value);
         uint256 before = a.balance;
         vm.prank(a);
-        pad.buy{value: value}(address(tok), 0, n, block.timestamp + 1, abi.encodePacked(r, s, v));
+        pad.buy{value: value}(address(tok), 0);
         ghostFeesPaid += fee;
         ghostBnbIn += (before - a.balance) - fee;
     }
@@ -68,17 +64,16 @@ contract InvariantTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        h = new Handler(pad, tok, signerPk);
+        h = new Handler(pad, tok, agentId);
         targetContract(address(h));
     }
 
     function invariant_bnbAccounting() public view {
         (, uint256 realBnb,, bool graduated,) = pad.curves(address(tok));
+        assertEq(address(pad).balance, pad.totalRealBnb() + pad.accruedFees() + pad.totalPending());
         if (!graduated) {
-            assertEq(address(pad).balance, realBnb + pad.accruedFees());
+            assertEq(realBnb, pad.totalRealBnb());
             assertEq(realBnb, h.ghostBnbIn() - h.ghostBnbOut());
-        } else {
-            assertEq(address(pad).balance, pad.accruedFees());
         }
         assertEq(pad.accruedFees(), h.ghostFeesPaid());
     }
@@ -94,9 +89,7 @@ contract InvariantTest is BaseTest {
         assertLe(realBnb, pad.GRADUATION_BNB());
         assertLe(sold, pad.CURVE_SUPPLY());
         if (!graduated) {
-            // rounding always favours the protocol: product never drops below K
             assertGe((pad.VIRTUAL_BNB() + realBnb) * (pad.VIRTUAL_TOKEN() - sold), pad.K());
-            // tokens out in the wild == sold
             assertEq(tok.totalSupply() - tok.balanceOf(address(pad)), sold);
         }
     }

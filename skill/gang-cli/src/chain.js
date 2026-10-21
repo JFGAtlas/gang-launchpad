@@ -4,7 +4,7 @@ import { LAUNCHPAD_ABI, ERC20_ABI } from './abi.js'
 
 export const CONFIG = {
   rpc: process.env.GANG_RPC_URL || 'https://bsc-dataseed.binance.org',
-  launchpad: process.env.GANG_LAUNCHPAD || '0x63ec44bC7CC8f3572AC3b3CC5fd4697C27bB55fd',
+  launchpad: process.env.GANG_LAUNCHPAD || '0xBfBB10db587DdFDF38c888cB80C5124f1Aa3C0Eb',
   chainId: '56',
 }
 
@@ -17,12 +17,14 @@ export const fmtTok = (units) => Number(formatEther(units)).toLocaleString('en-U
 export { parseEther, encodeFunctionData }
 
 export async function tokenInfo(token, me) {
-  const [c, name, symbol, price, locked, grad, cap] = await Promise.all([
-    pad('curves', [token]), erc(token, 'name'), erc(token, 'symbol'), pad('spotPrice', [token]), erc(token, 'locked'),
+  const [c, name, symbol, locked, grad, cap] = await Promise.all([
+    pad('curves', [token]), erc(token, 'name'), erc(token, 'symbol'), erc(token, 'locked'),
     pad('GRADUATION_BNB'), pad('MAX_PER_WALLET'),
   ])
   const [creator, realBnb, sold, graduated, pair] = c
   if (creator === '0x0000000000000000000000000000000000000000') throw new Error(`not a Gang token: ${token}`)
+  // curve end price (1e-7 BNB) for graduated tokens; live spot otherwise
+  const price = graduated ? 100000000000n : await pad('spotPrice', [token])
   const info = {
     token, name, symbol, creator, graduated, pair: graduated ? pair : null, locked,
     priceBnb: Number(price) / 1e18,
@@ -60,7 +62,7 @@ export const balanceOf = (token, a) => erc(token, 'balanceOf', [a])
 export const allowance = (token, a) => erc(token, 'allowance', [a, CONFIG.launchpad])
 
 export const calldata = {
-  buy: (token, minTokensOut) => encodeFunctionData({ abi: LAUNCHPAD_ABI, functionName: 'buy', args: [token, minTokensOut, 0n, 0n, '0x'] }),
+  buy: (token, minTokensOut) => encodeFunctionData({ abi: LAUNCHPAD_ABI, functionName: 'buy', args: [token, minTokensOut] }),
   sell: (token, tokensIn, minBnbOut) => encodeFunctionData({ abi: LAUNCHPAD_ABI, functionName: 'sell', args: [token, tokensIn, minBnbOut] }),
   approve: (amount) => encodeFunctionData({ abi: ERC20_ABI, functionName: 'approve', args: [CONFIG.launchpad, amount] }),
   create: (name, symbol) => encodeFunctionData({ abi: LAUNCHPAD_ABI, functionName: 'create', args: [name, symbol] }),

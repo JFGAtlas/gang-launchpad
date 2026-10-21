@@ -9,14 +9,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LaunchToken} from "./LaunchToken.sol";
-import {VoucherVerifier} from "./VoucherVerifier.sol";
 import {IMigrator} from "./interfaces/IMigrator.sol";
 
 /// @title Gang Launchpad
-/// @notice Agent-only bonding curve on BNB Chain. Buys require an EIP-712 voucher issued to Binance Agentic
-///         Wallets; sells are open. 1% fee on both sides goes to the platform vault. At 20 BNB raised the
-///         remaining supply and all BNB migrate to PancakeSwap V2 with LP burned, and the platform exits.
-contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
+/// @notice Agent-only bonding curve on BNB Chain. Buys require holding a SPACE ID Agent ID (.ai), the soulbound
+///         NFT only a Binance Agentic Wallet can claim; sells are open. Each wallet may hold at most 1% of supply
+///         from the curve. 1% fee on both sides goes to the platform vault. At 20 BNB raised the remaining supply
+///         and all BNB migrate to PancakeSwap V2 with LP burned, and the platform exits.
+///
+///         Trust model: the owner cannot touch curve BNB. The migrator is set once and never changed. The agent
+///         registry can only be changed through a 24h timelock that is announced on-chain.
+contract Launchpad is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -33,6 +36,7 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     uint256 public constant MAX_PER_WALLET = 10_000_000 ether;
     uint256 public constant FEE_BPS = 100;
     uint256 public constant BPS = 10_000;
+    uint256 public constant REGISTRY_TIMELOCK = 24 hours;
 
     // ---------------------------------------------------------------- storage
     struct Curve {
@@ -49,9 +53,16 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     address public feeVault;
     IMigrator public migrator;
     /// @notice SPACE ID "Agent ID" soulbound ERC-721 (.ai names), mintable only from a Binance Agentic Wallet.
-    ///         Holding one is the on-chain proof of being an agent. address(0) disables this path.
     IERC721 public agentIdRegistry;
+    address public pendingRegistry;
+    uint256 public pendingRegistryAt;
+
     uint256 public accruedFees;
+    /// @notice Sum of realBnb over all live curves. Lets `sweepExcess` recover force-fed BNB without touching user funds.
+    uint256 public totalRealBnb;
+    /// @notice BNB owed to accounts whose refund/payout transfer failed (contract wallets without receive()).
+    mapping(address => uint256) public pendingWithdrawals;
+    uint256 public totalPending;
 
     // ---------------------------------------------------------------- events
     event Created(address indexed token, address indexed creator, string name, string symbol);
@@ -62,9 +73,14 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
         address indexed token, address indexed seller, uint256 tokensIn, uint256 fee, uint256 bnbOut, uint256 realBnb
     );
     event Graduated(address indexed token, address indexed pair, uint256 tokenAmount, uint256 bnbAmount);
+    event PaymentDeferred(address indexed to, uint256 amount);
+    event Withdrawn(address indexed to, uint256 amount);
     event FeesCollected(address indexed vault, uint256 amount);
+    event ExcessSwept(address indexed vault, uint256 amount);
     event FeeVaultUpdated(address indexed vault);
-    event MigratorUpdated(address indexed migrator);
+    event MigratorSet(address indexed migrator);
+    event RegistryChangeProposed(address indexed registry, uint256 effectiveAt);
+    event RegistryChangeCancelled(address indexed registry);
     event AgentIdRegistryUpdated(address indexed registry);
 
     // ---------------------------------------------------------------- errors
@@ -72,18 +88,17 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     error AlreadyGraduated();
     error ZeroAmount();
     error Slippage();
-    error RefundFailed();
     error PayoutFailed();
     error MigratorNotSet();
+    error MigratorAlreadySet();
     error ZeroAddress();
     error NotAgent();
     error WalletCapReached();
+    error NothingPending();
+    error TimelockActive();
 
-    constructor(address owner_, address voucherSigner_, address feeVault_, address agentIdRegistry_)
-        Ownable(owner_)
-        VoucherVerifier(voucherSigner_)
-    {
-        if (feeVault_ == address(0)) revert ZeroAddress();
+    constructor(address owner_, address feeVault_, address agentIdRegistry_) Ownable(owner_) {
+        if (feeVault_ == address(0) || agentIdRegistry_ == address(0)) revert ZeroAddress();
         feeVault = feeVault_;
         agentIdRegistry = IERC721(agentIdRegistry_);
         emit FeeVaultUpdated(feeVault_);
@@ -93,6 +108,7 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     // ---------------------------------------------------------------- create
     /// @notice Deploys a new LaunchToken and opens its bonding curve. No creation fee.
     function create(string calldata name, string calldata symbol) external returns (address token) {
+        if (address(migrator) == address(0)) revert MigratorNotSet();
         token = address(new LaunchToken(name, symbol));
         curves[token] = Curve({creator: msg.sender, realBnb: 0, sold: 0, graduated: false, pair: address(0)});
         allTokens.push(token);
@@ -100,23 +116,13 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     }
 
     // ---------------------------------------------------------------- buy
-    /// @notice Buy on the curve. Gate: either msg.sender holds an Agent ID (.ai) NFT and passes an empty
-    ///         `sig`, or presents a backend-signed voucher. Each wallet may hold at most MAX_PER_WALLET
-    ///         (1% of supply) from the curve. BNB beyond the wallet cap or past graduation is refunded; the
-    ///         buy that reaches 20 BNB triggers migration in the same tx.
-    function buy(address token, uint256 minTokensOut, uint256 nonce, uint256 deadline, bytes calldata sig)
-        external
-        payable
-        nonReentrant
-        returns (uint256 tokensOut)
-    {
+    /// @notice Buy on the curve. Caller must hold an Agent ID. Each wallet may hold at most MAX_PER_WALLET (1% of
+    ///         supply) from the curve. BNB beyond the wallet cap or past graduation is refunded; the buy that reaches
+    ///         20 BNB triggers migration in the same tx (that buyer pays the migration gas).
+    function buy(address token, uint256 minTokensOut) external payable nonReentrant returns (uint256 tokensOut) {
         Curve storage c = _live(token);
         if (msg.value == 0) revert ZeroAmount();
-        if (sig.length == 0) {
-            if (!isAgent(msg.sender)) revert NotAgent();
-        } else {
-            _consumeVoucher(msg.sender, token, nonce, deadline, sig);
-        }
+        if (!isAgent(msg.sender)) revert NotAgent();
 
         uint256 room = walletRoom(token, msg.sender);
         if (room == 0) revert WalletCapReached();
@@ -129,21 +135,18 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
 
         c.realBnb += bnbIn.toUint128();
         c.sold += tokensOut.toUint128();
+        totalRealBnb += bnbIn;
         accruedFees += fee;
 
         IERC20(token).safeTransfer(msg.sender, tokensOut);
         emit Buy(token, msg.sender, bnbIn, fee, tokensOut, c.realBnb);
 
-        if (refund > 0) {
-            (bool ok,) = msg.sender.call{value: refund}("");
-            if (!ok) revert RefundFailed();
-        }
-
         if (c.realBnb == GRADUATION_BNB) _graduate(token, c);
+        if (refund > 0) _pay(msg.sender, refund);
     }
 
     // ---------------------------------------------------------------- sell
-    /// @notice Sell on the curve. No voucher required.
+    /// @notice Sell on the curve. No gate.
     function sell(address token, uint256 tokensIn, uint256 minBnbOut)
         external
         nonReentrant
@@ -159,24 +162,34 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
 
         c.realBnb -= bnbOut.toUint128();
         c.sold -= tokensIn.toUint128();
+        totalRealBnb -= bnbOut;
         accruedFees += fee;
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokensIn);
-        (bool ok,) = msg.sender.call{value: bnbToUser}("");
-        if (!ok) revert PayoutFailed();
         emit Sell(token, msg.sender, tokensIn, fee, bnbToUser, c.realBnb);
+        _pay(msg.sender, bnbToUser);
+    }
+
+    /// @notice Withdraw BNB that could not be pushed to you (refund or sale proceeds).
+    function withdraw() external nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        if (amount == 0) revert NothingPending();
+        pendingWithdrawals[msg.sender] = 0;
+        totalPending -= amount;
+        (bool ok,) = msg.sender.call{value: amount}("");
+        if (!ok) revert PayoutFailed();
+        emit Withdrawn(msg.sender, amount);
     }
 
     // ---------------------------------------------------------------- graduation
     function _graduate(address token, Curve storage c) internal {
-        if (address(migrator) == address(0)) revert MigratorNotSet();
         c.graduated = true;
-
-        LaunchToken(token).unlock();
-        uint256 tokenAmount = IERC20(token).balanceOf(address(this)); // CURVE_SUPPLY - sold + LP share
+        uint256 tokenAmount = TOTAL_SUPPLY - c.sold; // exactly what the Launchpad holds: nothing else can enter
         uint256 bnbAmount = c.realBnb;
         c.realBnb = 0;
+        totalRealBnb -= bnbAmount;
 
+        LaunchToken(token).unlock();
         IERC20(token).safeTransfer(address(migrator), tokenAmount);
         address pair = migrator.migrate{value: bnbAmount}(token, tokenAmount);
         c.pair = pair;
@@ -190,10 +203,23 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
         view
         returns (uint256 tokensOut, uint256 bnbIn, uint256 fee, uint256 refund)
     {
-        Curve storage c = curves[token];
+        Curve storage c = _live(token);
         uint256 room = walletRoom(token, buyer);
         if (room == 0) return (0, 0, 0, bnbGross);
         return _quote(c, bnbGross, room);
+    }
+
+    function quoteSell(address token, uint256 tokensIn) external view returns (uint256 bnbToUser, uint256 fee) {
+        Curve storage c = _live(token);
+        uint256 bnbOut = _bnbOut(c, tokensIn);
+        fee = (bnbOut * FEE_BPS) / BPS;
+        bnbToUser = bnbOut - fee;
+    }
+
+    /// @notice Spot price in wei per whole token (1e18 units). Reverts for unknown or graduated tokens.
+    function spotPrice(address token) external view returns (uint256) {
+        Curve storage c = _live(token);
+        return ((VIRTUAL_BNB + c.realBnb) * 1 ether) / (VIRTUAL_TOKEN - c.sold);
     }
 
     /// @notice How many more tokens `buyer` may still buy from the curve (wallet cap minus current balance).
@@ -202,22 +228,9 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
         return bal >= MAX_PER_WALLET ? 0 : MAX_PER_WALLET - bal;
     }
 
-    function quoteSell(address token, uint256 tokensIn) external view returns (uint256 bnbToUser, uint256 fee) {
-        Curve storage c = curves[token];
-        uint256 bnbOut = _bnbOut(c, tokensIn);
-        fee = (bnbOut * FEE_BPS) / BPS;
-        bnbToUser = bnbOut - fee;
-    }
-
-    /// @notice Spot price in wei per whole token (1e18 units).
-    function spotPrice(address token) external view returns (uint256) {
-        Curve storage c = curves[token];
-        return ((VIRTUAL_BNB + c.realBnb) * 1 ether) / (VIRTUAL_TOKEN - c.sold);
-    }
-
     /// @notice True if `account` holds an Agent ID NFT (on-chain proof of a Binance Agentic Wallet).
     function isAgent(address account) public view returns (bool) {
-        return address(agentIdRegistry) != address(0) && agentIdRegistry.balanceOf(account) > 0;
+        return agentIdRegistry.balanceOf(account) > 0;
     }
 
     function tokenCount() external view returns (uint256) {
@@ -233,7 +246,7 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
     {
         fee = (bnbGross * FEE_BPS) / BPS;
         bnbIn = bnbGross - fee;
-        bool capped;
+        bool capped = false;
 
         uint256 remaining = GRADUATION_BNB - c.realBnb;
         if (bnbIn > remaining) {
@@ -281,13 +294,34 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
         if (c.graduated) revert AlreadyGraduated();
     }
 
+    /// @dev Push BNB; if the recipient cannot receive it, park it for `withdraw()` instead of reverting.
+    function _pay(address to, uint256 amount) internal {
+        (bool ok,) = to.call{value: amount, gas: 30_000}("");
+        if (!ok) {
+            pendingWithdrawals[to] += amount;
+            totalPending += amount;
+            emit PaymentDeferred(to, amount);
+        }
+    }
+
     // ---------------------------------------------------------------- admin
-    function collectFees() external {
+    /// @notice Anyone can push accrued fees to the vault.
+    function collectFees() external nonReentrant {
         uint256 amount = accruedFees;
         accruedFees = 0;
         (bool ok,) = feeVault.call{value: amount}("");
         if (!ok) revert PayoutFailed();
         emit FeesCollected(feeVault, amount);
+    }
+
+    /// @notice Recover BNB that was force-fed into the contract (e.g. via selfdestruct). Never touches curve BNB,
+    ///         fees or deferred payouts.
+    function sweepExcess() external nonReentrant {
+        uint256 excess = address(this).balance - totalRealBnb - accruedFees - totalPending;
+        if (excess == 0) revert ZeroAmount();
+        (bool ok,) = feeVault.call{value: excess}("");
+        if (!ok) revert PayoutFailed();
+        emit ExcessSwept(feeVault, excess);
     }
 
     function setFeeVault(address vault) external onlyOwner {
@@ -296,20 +330,34 @@ contract Launchpad is Ownable2Step, ReentrancyGuard, VoucherVerifier {
         emit FeeVaultUpdated(vault);
     }
 
+    /// @notice One-shot. Once set, the migrator can never be changed, so the owner cannot redirect graduations.
     function setMigrator(address migrator_) external onlyOwner {
         if (migrator_ == address(0)) revert ZeroAddress();
+        if (address(migrator) != address(0)) revert MigratorAlreadySet();
         migrator = IMigrator(migrator_);
-        emit MigratorUpdated(migrator_);
+        emit MigratorSet(migrator_);
     }
 
-    /// @notice Set to address(0) to force the voucher path only.
-    function setAgentIdRegistry(address registry) external onlyOwner {
-        agentIdRegistry = IERC721(registry);
-        emit AgentIdRegistryUpdated(registry);
+    /// @notice Announce a registry change; it can be applied after REGISTRY_TIMELOCK. Users see it coming on-chain.
+    function proposeAgentIdRegistry(address registry) external onlyOwner {
+        if (registry == address(0)) revert ZeroAddress();
+        pendingRegistry = registry;
+        pendingRegistryAt = block.timestamp + REGISTRY_TIMELOCK;
+        emit RegistryChangeProposed(registry, pendingRegistryAt);
     }
 
-    function setVoucherSigner(address signer) external onlyOwner {
-        if (signer == address(0)) revert ZeroAddress();
-        _setVoucherSigner(signer);
+    function cancelAgentIdRegistry() external onlyOwner {
+        emit RegistryChangeCancelled(pendingRegistry);
+        pendingRegistry = address(0);
+        pendingRegistryAt = 0;
+    }
+
+    function applyAgentIdRegistry() external onlyOwner {
+        if (pendingRegistry == address(0)) revert NothingPending();
+        if (block.timestamp < pendingRegistryAt) revert TimelockActive();
+        agentIdRegistry = IERC721(pendingRegistry);
+        emit AgentIdRegistryUpdated(pendingRegistry);
+        pendingRegistry = address(0);
+        pendingRegistryAt = 0;
     }
 }

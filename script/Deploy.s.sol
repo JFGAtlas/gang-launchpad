@@ -13,12 +13,11 @@ contract Deploy is Script {
 
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address signer = vm.envAddress("VOUCHER_SIGNER");
         address vault = vm.envAddress("FEE_VAULT");
         address owner = vm.envOr("OWNER", vm.addr(pk));
 
         vm.startBroadcast(pk);
-        Launchpad pad = new Launchpad(owner, signer, vault, AGENT_ID);
+        Launchpad pad = new Launchpad(owner, vault, AGENT_ID);
         Migrator migrator = new Migrator(PANCAKE_V2_FACTORY, WBNB, address(pad));
         pad.setMigrator(address(migrator));
         vm.stopBroadcast();

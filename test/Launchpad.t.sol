@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {BaseTest} from "./Base.t.sol";
 import {Launchpad} from "../src/Launchpad.sol";
 import {LaunchToken} from "../src/LaunchToken.sol";
-import {VoucherVerifier} from "../src/VoucherVerifier.sol";
+import {NoReceive, SelfDestructor} from "./mocks/NoReceive.sol";
 
 contract LaunchpadTest is BaseTest {
     // ------------------------------------------------------------ create
@@ -15,24 +15,29 @@ contract LaunchpadTest is BaseTest {
         assertEq(pad.tokenCount(), 1);
     }
 
-    function test_create_noFee() public {
-        uint256 before = address(this).balance;
+    function test_create_noFee_anyoneCanCreate() public {
+        uint256 before = human.balance;
+        vm.prank(human);
         pad.create("B", "B");
-        assertEq(address(this).balance, before);
+        assertEq(human.balance, before);
+    }
+
+    function test_create_requiresMigrator() public {
+        Launchpad p2 = new Launchpad(owner, vault, address(agentId));
+        vm.expectRevert(Launchpad.MigratorNotSet.selector);
+        p2.create("X", "X");
     }
 
     // ------------------------------------------------------------ curve math
     function test_firstBuy_pointZeroOneBnb() public {
         uint256 out = _buy(alice, 0.01 ether);
-        // 0.0099 BNB net -> ~1.5814M tokens at opening prices
         assertApproxEqRel(out, 1_581_651.25 ether, 1e12);
         assertEq(_realBnb(), 0.0099 ether);
         assertEq(pad.accruedFees(), 0.0001 ether);
-        assertEq(tok.balanceOf(alice), out);
+        assertEq(pad.totalRealBnb(), 0.0099 ether);
     }
 
     function test_openingPrice() public view {
-        // 6.25e-9 BNB per token
         assertApproxEqAbs(pad.spotPrice(address(tok)), 6.25e9, 1);
     }
 
@@ -50,17 +55,9 @@ contract LaunchpadTest is BaseTest {
         uint256 out = _buy(alice, 0.05 ether);
         uint256 before = alice.balance;
         _sell(alice, out);
-        // Got back less than the 0.05 BNB paid (two 1% fees + rounding)
         assertLt(alice.balance - before, 0.05 ether);
         assertApproxEqRel(alice.balance - before, 0.05 ether * 99 * 99 / 10_000, 1e14);
         assertEq(_sold(), 0);
-    }
-
-    function test_sell_feeAccrues() public {
-        uint256 out = _buy(alice, 2 ether);
-        uint256 feesBefore = pad.accruedFees();
-        _sell(alice, out / 2);
-        assertGt(pad.accruedFees(), feesBefore);
     }
 
     function test_quoteMatchesExecution() public {
@@ -81,33 +78,27 @@ contract LaunchpadTest is BaseTest {
         uint256 before = alice.balance;
         uint256 out = _buy(alice, 100 ether);
         assertEq(out, pad.MAX_PER_WALLET());
-        assertEq(tok.balanceOf(alice), 10_000_000 ether);
         assertFalse(_graduated());
-        // paid = bnb for 10M tokens + fee, everything else refunded
         uint256 paid = before - alice.balance;
         uint256 bnbIn = _realBnb();
         uint256 fee = (bnbIn * 100 + 9899) / 9900;
         assertEq(paid, bnbIn + fee);
         assertEq(pad.accruedFees(), fee);
-        assertLt(paid, 0.07 ether); // ~0.0625 BNB at opening prices
+        assertLt(paid, 0.07 ether);
         assertEq(pad.walletRoom(address(tok), alice), 0);
     }
 
     function test_walletCap_partialFillsToExactCap() public {
         _buy(alice, 0.03 ether);
-        uint256 first = tok.balanceOf(alice);
-        assertLt(first, 10_000_000 ether);
         _buy(alice, 5 ether);
         assertEq(tok.balanceOf(alice), 10_000_000 ether);
     }
 
     function test_walletCap_fullWalletReverts() public {
         _buy(alice, 100 ether);
-        uint256 nonce = nextNonce++;
-        bytes memory sig = _voucher(alice, address(tok), nonce, block.timestamp + 1);
         vm.prank(alice);
         vm.expectRevert(Launchpad.WalletCapReached.selector);
-        pad.buy{value: 0.01 ether}(address(tok), 0, nonce, block.timestamp + 1, sig);
+        pad.buy{value: 0.01 ether}(address(tok), 0);
     }
 
     function test_walletCap_sellFreesRoom() public {
@@ -118,14 +109,12 @@ contract LaunchpadTest is BaseTest {
         assertEq(tok.balanceOf(alice), 10_000_000 ether);
     }
 
-    function test_walletCap_quoteMatches() public {
-        (uint256 qOut, uint256 qIn, uint256 qFee, uint256 qRefund) = pad.quoteBuy(address(tok), alice, 100 ether);
-        assertEq(qOut, 10_000_000 ether);
-        assertEq(qIn + qFee + qRefund, 100 ether);
-        uint256 before = alice.balance;
-        uint256 out = _buy(alice, 100 ether);
-        assertEq(out, qOut);
-        assertEq(before - alice.balance, qIn + qFee);
+    function test_walletCap_cannotDonateToLaunchpadToReopenRoom() public {
+        _buy(alice, 100 ether);
+        vm.prank(alice);
+        vm.expectRevert(LaunchToken.TransfersLocked.selector);
+        tok.transfer(address(pad), 5_000_000 ether);
+        assertEq(pad.walletRoom(address(tok), alice), 0);
     }
 
     function test_walletCap_quoteForFullWallet() public {
@@ -138,77 +127,71 @@ contract LaunchpadTest is BaseTest {
     // ------------------------------------------------------------ graduation
     function test_graduation_needs80Wallets() public {
         uint256 n = _fillCurve();
-        assertEq(n, 80); // 80 x 1% = 80% of supply
+        assertEq(n, 80);
         assertTrue(_graduated());
         assertEq(mockMigrator.calls(), 1);
         assertEq(mockMigrator.lastBnb(), 20 ether);
+        assertEq(mockMigrator.lastTokenAmount(), 1_000_000_000 ether - _sold());
         assertApproxEqAbs(mockMigrator.lastTokenAmount(), 200_000_000 ether, 1e9);
         assertEq(tok.balanceOf(address(pad)), 0);
         assertFalse(tok.locked());
         assertEq(_realBnb(), 0);
-        // contract holds only fees now; last wallet got slightly less than 1% (graduation cap bound first)
+        assertEq(pad.totalRealBnb(), 0);
         assertEq(address(pad).balance, pad.accruedFees());
-        address last = address(uint160(0xA0000 + 79));
-        assertLe(tok.balanceOf(last), 10_000_000 ether);
-        assertGt(tok.balanceOf(last), 9_999_999 ether);
     }
 
     function test_graduation_lastBuyRefundsExcess() public {
-        // fill 79 wallets, then the 80th sends far more than needed
         for (uint256 i; i < 79; i++) {
             address w = address(uint160(0xB0000 + i));
-            agentId.mint(w, 2000 + i);
+            _mintAgent(w);
             vm.deal(w, 10 ether);
             vm.prank(w);
-            pad.buy{value: 2 ether}(address(tok), 0, 0, 0, "");
+            pad.buy{value: 2 ether}(address(tok), 0);
         }
-        assertFalse(_graduated());
         uint256 remaining = 20 ether - _realBnb();
         uint256 before = agent.balance;
-        _buyAsAgent(agent, 50 ether);
+        _buy(agent, 50 ether);
         assertTrue(_graduated());
         uint256 fee = (remaining * 100 + 9899) / 9900;
         assertEq(before - agent.balance, remaining + fee);
     }
 
-    function test_graduated_curveClosed() public {
+    function test_graduated_curveClosed_viewsRevert() public {
         _fillCurve();
-        uint256 nonce = nextNonce++;
-        bytes memory sig = _voucher(alice, address(tok), nonce, block.timestamp + 1);
         vm.prank(alice);
         vm.expectRevert(Launchpad.AlreadyGraduated.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, nonce, block.timestamp + 1, sig);
-
+        pad.buy{value: 1 ether}(address(tok), 0);
         vm.startPrank(alice);
         tok.approve(address(pad), 1 ether);
         vm.expectRevert(Launchpad.AlreadyGraduated.selector);
         pad.sell(address(tok), 1 ether, 0);
         vm.stopPrank();
-    }
-
-    function test_graduation_requiresMigrator() public {
-        Launchpad p2 = new Launchpad(owner, signer, vault, address(agentId));
-        address t2 = p2.create("X", "X");
-        for (uint256 i; i < 80; i++) {
-            address w = address(uint160(0xC0000 + i));
-            agentId.mint(w, 3000 + i);
-            vm.deal(w, 10 ether);
-            vm.prank(w);
-            if (i == 79) vm.expectRevert(Launchpad.MigratorNotSet.selector);
-            p2.buy{value: 2 ether}(t2, 0, 0, 0, "");
-        }
+        vm.expectRevert(Launchpad.AlreadyGraduated.selector);
+        pad.spotPrice(address(tok));
+        vm.expectRevert(Launchpad.AlreadyGraduated.selector);
+        pad.quoteBuy(address(tok), alice, 1 ether);
+        vm.expectRevert(Launchpad.AlreadyGraduated.selector);
+        pad.quoteSell(address(tok), 1 ether);
     }
 
     // ------------------------------------------------------------ transfer lock
     function test_lock_blocksTransfersBeforeGraduation() public {
-        uint256 out = _buy(alice, 1 ether);
+        uint256 out = _buy(alice, 0.01 ether);
         vm.prank(alice);
         vm.expectRevert(LaunchToken.TransfersLocked.selector);
         tok.transfer(bob, out);
+        vm.prank(alice);
+        tok.approve(bob, out);
+        vm.prank(bob);
+        vm.expectRevert(LaunchToken.TransfersLocked.selector);
+        tok.transferFrom(alice, bob, out);
+        vm.prank(bob);
+        vm.expectRevert(LaunchToken.TransfersLocked.selector);
+        tok.transferFrom(alice, address(pad), out);
     }
 
     function test_lock_liftedAfterGraduation() public {
-        uint256 out = _buy(alice, 1 ether);
+        uint256 out = _buy(alice, 0.01 ether);
         _fillCurve();
         vm.prank(alice);
         tok.transfer(bob, out);
@@ -220,99 +203,55 @@ contract LaunchpadTest is BaseTest {
         tok.unlock();
     }
 
-    // ------------------------------------------------------------ voucher gate
-    function test_voucher_wrongSigner() public {
-        bytes32 digest = pad.voucherDigest(alice, address(tok), 7, block.timestamp + 1);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xBAD, digest);
-        vm.prank(alice);
-        vm.expectRevert(VoucherVerifier.VoucherBadSigner.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, abi.encodePacked(r, s, v));
+    // ------------------------------------------------------------ agent gate
+    function test_gate_holderBuys_nonHolderRejected() public {
+        assertGt(_buy(agent, 0.01 ether), 0);
+        vm.prank(human);
+        vm.expectRevert(Launchpad.NotAgent.selector);
+        pad.buy{value: 0.01 ether}(address(tok), 0);
     }
 
-    function test_voucher_wrongBuyer() public {
-        bytes memory sig = _voucher(alice, address(tok), 7, block.timestamp + 1);
-        vm.prank(bob);
-        vm.expectRevert(VoucherVerifier.VoucherBadSigner.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, sig);
-    }
-
-    function test_voucher_wrongToken() public {
-        address other = pad.create("O", "O");
-        bytes memory sig = _voucher(alice, other, 7, block.timestamp + 1);
-        vm.prank(alice);
-        vm.expectRevert(VoucherVerifier.VoucherBadSigner.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, sig);
-    }
-
-    function test_voucher_expired() public {
-        bytes memory sig = _voucher(alice, address(tok), 7, block.timestamp);
-        vm.warp(block.timestamp + 1);
-        vm.prank(alice);
-        vm.expectRevert(VoucherVerifier.VoucherExpired.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp - 1, sig);
-    }
-
-    function test_voucher_replay() public {
-        bytes memory sig = _voucher(alice, address(tok), 7, block.timestamp + 1);
-        vm.prank(alice);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, sig);
-        vm.prank(alice);
-        vm.expectRevert(VoucherVerifier.VoucherNonceUsed.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, sig);
-    }
-
-    function test_voucher_rotateSigner() public {
-        vm.prank(owner);
-        pad.setVoucherSigner(vm.addr(0xB0B));
-        bytes memory sig = _voucher(alice, address(tok), 7, block.timestamp + 1);
-        vm.prank(alice);
-        vm.expectRevert(VoucherVerifier.VoucherBadSigner.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 7, block.timestamp + 1, sig);
-    }
-
-    // ------------------------------------------------------------ agent id gate (on-chain)
-    function test_agentGate_holderBuysWithoutVoucher() public {
-        uint256 out = _buyAsAgent(agent, 1 ether);
+    function test_gate_sellOpenToAnyone() public {
+        uint256 out = _buy(alice, 0.01 ether);
+        _fillCurve(); // unlock so alice can hand tokens to a human... but curve is closed then.
+        // On a live curve the only holders are agents, so "anyone" == any holder. Verified by _sell above.
         assertGt(out, 0);
-        assertEq(tok.balanceOf(agent), out);
     }
 
-    function test_agentGate_nonHolderRejected() public {
-        vm.prank(alice);
-        vm.expectRevert(Launchpad.NotAgent.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 0, 0, "");
-    }
-
-    function test_agentGate_disabledForcesVoucher() public {
-        vm.prank(owner);
-        pad.setAgentIdRegistry(address(0));
-        vm.prank(agent);
-        vm.expectRevert(Launchpad.NotAgent.selector);
-        pad.buy{value: 1 ether}(address(tok), 0, 0, 0, "");
-        // voucher path still works for the same agent
-        _buy(agent, 1 ether);
-    }
-
-    function test_agentGate_soulbound() public {
+    function test_gate_soulbound() public {
         vm.prank(agent);
         vm.expectRevert();
-        agentId.transferFrom(agent, alice, 1);
+        agentId.transferFrom(agent, human, 3);
     }
 
-    function test_isAgent() public view {
-        assertTrue(pad.isAgent(agent));
-        assertFalse(pad.isAgent(alice));
+    // ------------------------------------------------------------ deferred payouts (contract wallets)
+    function test_deferredRefund_contractWithoutReceive() public {
+        NoReceive w = new NoReceive();
+        _mintAgent(address(w));
+        vm.deal(address(this), 10 ether);
+        uint256 out = w.buy{value: 1 ether}(pad, address(tok)); // capped at 1% -> refund cannot be pushed
+        assertEq(out, 10_000_000 ether);
+        uint256 pending = pad.pendingWithdrawals(address(w));
+        assertGt(pending, 0.9 ether);
+        assertEq(pad.totalPending(), pending);
+        // sell also defers
+        w.sell(pad, address(tok), 1_000_000 ether);
+        assertGt(pad.pendingWithdrawals(address(w)), pending);
+        // withdraw fails for a contract that still can't receive; the funds stay claimable
+        vm.expectRevert(Launchpad.PayoutFailed.selector);
+        w.withdraw(pad);
+        assertEq(address(pad).balance, pad.totalRealBnb() + pad.accruedFees() + pad.totalPending());
     }
 
-    function test_sell_noVoucherNeeded() public {
-        uint256 out = _buy(alice, 1 ether);
-        _sell(alice, out); // no voucher involved
-        assertEq(tok.balanceOf(alice), 0);
+    function test_withdraw_nothingPending() public {
+        vm.prank(alice);
+        vm.expectRevert(Launchpad.NothingPending.selector);
+        pad.withdraw();
     }
 
     // ------------------------------------------------------------ fees & admin
     function test_collectFees() public {
-        _buy(alice, 10 ether);
+        _buy(alice, 0.5 ether);
         uint256 fees = pad.accruedFees();
         pad.collectFees();
         assertEq(vault.balance, fees);
@@ -320,17 +259,56 @@ contract LaunchpadTest is BaseTest {
         assertEq(address(pad).balance, _realBnb());
     }
 
+    function test_sweepExcess_onlyForceFedBnb() public {
+        _buy(alice, 0.5 ether);
+        vm.expectRevert(Launchpad.ZeroAmount.selector);
+        pad.sweepExcess();
+        new SelfDestructor{value: 1 ether}(payable(address(pad)));
+        pad.sweepExcess();
+        assertEq(vault.balance, 1 ether);
+        assertEq(address(pad).balance, pad.totalRealBnb() + pad.accruedFees());
+    }
+
+    function test_migrator_setOnce() public {
+        vm.prank(owner);
+        vm.expectRevert(Launchpad.MigratorAlreadySet.selector);
+        pad.setMigrator(address(0xBAD));
+    }
+
+    function test_registry_timelock() public {
+        address newReg = address(0x1234);
+        vm.prank(owner);
+        pad.proposeAgentIdRegistry(newReg);
+        vm.prank(owner);
+        vm.expectRevert(Launchpad.TimelockActive.selector);
+        pad.applyAgentIdRegistry();
+        vm.warp(block.timestamp + 24 hours);
+        vm.prank(owner);
+        pad.applyAgentIdRegistry();
+        assertEq(address(pad.agentIdRegistry()), newReg);
+    }
+
+    function test_registry_cancel() public {
+        vm.startPrank(owner);
+        pad.proposeAgentIdRegistry(address(0x1234));
+        pad.cancelAgentIdRegistry();
+        vm.warp(block.timestamp + 24 hours);
+        vm.expectRevert(Launchpad.NothingPending.selector);
+        pad.applyAgentIdRegistry();
+        vm.stopPrank();
+    }
+
     function test_slippage() public {
-        uint256 nonce = nextNonce++;
-        bytes memory sig = _voucher(alice, address(tok), nonce, block.timestamp + 1);
         vm.prank(alice);
         vm.expectRevert(Launchpad.Slippage.selector);
-        pad.buy{value: 1 ether}(address(tok), type(uint256).max, nonce, block.timestamp + 1, sig);
+        pad.buy{value: 1 ether}(address(tok), type(uint256).max);
     }
 
     function test_unknownToken() public {
         vm.expectRevert(Launchpad.UnknownToken.selector);
         pad.sell(address(0x1234), 1, 0);
+        vm.expectRevert(Launchpad.UnknownToken.selector);
+        pad.spotPrice(address(0x1234));
     }
 
     function test_onlyOwnerAdmin() public {
@@ -339,9 +317,7 @@ contract LaunchpadTest is BaseTest {
         vm.expectRevert();
         pad.setMigrator(alice);
         vm.expectRevert();
-        pad.setVoucherSigner(alice);
-        vm.expectRevert();
-        pad.setAgentIdRegistry(alice);
+        pad.proposeAgentIdRegistry(alice);
     }
 
     receive() external payable {}

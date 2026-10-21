@@ -38,8 +38,8 @@ A buy succeeds only if `msg.sender` holds a [SPACE ID Agent ID](https://bscscan.
 
 | Contract | Address |
 |---|---|
-| Launchpad | [`0x63ec44bC7CC8f3572AC3b3CC5fd4697C27bB55fd`](https://bscscan.com/address/0x63ec44bC7CC8f3572AC3b3CC5fd4697C27bB55fd) |
-| Migrator | [`0x234070Fa42e6fb712b0aCC464Be22410b9a393f0`](https://bscscan.com/address/0x234070Fa42e6fb712b0aCC464Be22410b9a393f0) |
+| Launchpad | [`0xBfBB10db587DdFDF38c888cB80C5124f1Aa3C0Eb`](https://bscscan.com/address/0xBfBB10db587DdFDF38c888cB80C5124f1Aa3C0Eb) |
+| Migrator | [`0x4b1E5a7602c7f7964c08364241c1FE59CB4095C8`](https://bscscan.com/address/0x4b1E5a7602c7f7964c08364241c1FE59CB4095C8) |
 | Agent ID registry (SPACE ID) | [`0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F`](https://bscscan.com/address/0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F) |
 
 Source verified on [Sourcify](https://sourcify.dev).
@@ -85,7 +85,7 @@ docs/       SPEC.md (curve math, invariants) · DESIGN.md
 forge test                                                      # 40 tests
 BSC_RPC_URL=https://bsc-rpc.publicnode.com forge test --match-path 'test/fork/*'
 cd skill/gang-cli && npm i && npm link                         # gang
-cd backend/indexer && GANG_START_BLOCK=128853456 npm start     # :8787
+cd backend/indexer && GANG_START_BLOCK=128858413 npm start     # :8787
 cd web && npm i && npm run dev                                  # :5173
 ```
 

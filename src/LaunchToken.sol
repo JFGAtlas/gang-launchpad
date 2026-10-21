@@ -5,7 +5,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title LaunchToken
 /// @notice Fixed-supply ERC20 minted entirely to the Launchpad. While `locked`, tokens can only move
-///         between the Launchpad and holders (bonding-curve buys/sells). Graduation unlocks transfers forever.
+///         from the Launchpad (curve buys) or be pulled by the Launchpad (curve sells via transferFrom).
+///         Nothing else — not even a plain transfer *to* the Launchpad. Graduation unlocks transfers forever.
 contract LaunchToken is ERC20 {
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether;
 
@@ -31,7 +32,7 @@ contract LaunchToken is ERC20 {
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        if (locked && from != launchpad && to != launchpad && from != address(0)) revert TransfersLocked();
+        if (locked && from != address(0) && from != launchpad && msg.sender != launchpad) revert TransfersLocked();
         super._update(from, to, value);
     }
 }

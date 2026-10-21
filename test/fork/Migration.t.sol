@@ -7,6 +7,7 @@ import {LaunchToken} from "../../src/LaunchToken.sol";
 import {Migrator} from "../../src/Migrator.sol";
 import {IPancakeFactory, IPancakePair, IWBNB} from "../../src/interfaces/IPancake.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /// @dev Runs only when BSC_RPC_URL is set: forge test --match-path 'test/fork/*'
 contract MigrationForkTest is Test {
@@ -19,34 +20,33 @@ contract MigrationForkTest is Test {
     Launchpad pad;
     Migrator migrator;
     LaunchToken tok;
-    uint256 signerPk = 0xA11CE;
     address alice = makeAddr("alice");
 
     function setUp() public {
         string memory rpc = vm.envOr("BSC_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return;
         vm.createSelectFork(rpc);
-        pad = new Launchpad(address(this), vm.addr(signerPk), makeAddr("vault"), AGENT_ID);
+        pad = new Launchpad(address(this), makeAddr("vault"), AGENT_ID);
         migrator = new Migrator(FACTORY, WBNB, address(pad));
         pad.setMigrator(address(migrator));
         tok = LaunchToken(pad.create("Gang Fork", "CFK"));
         vm.deal(alice, 100 ether);
     }
 
-    function _buyFrom(address who, uint256 value, uint256 nonce) internal {
-        bytes32 d = pad.voucherDigest(who, address(tok), nonce, block.timestamp + 1);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, d);
+    /// @dev Pretend `who` holds an Agent ID on the real registry (fork-only shortcut).
+    function _buyFrom(address who, uint256 value) internal {
+        vm.mockCall(AGENT_ID, abi.encodeWithSelector(IERC721.balanceOf.selector, who), abi.encode(uint256(1)));
         vm.deal(who, value);
         vm.prank(who);
-        pad.buy{value: value}(address(tok), 0, nonce, block.timestamp + 1, abi.encodePacked(r, s, v));
+        pad.buy{value: value}(address(tok), 0);
     }
 
-    /// @dev 80 voucher wallets x 1% each fills the curve to graduation.
+    /// @dev 80 agent wallets x 1% each fills the curve to graduation.
     function _fillCurve() internal {
         for (uint256 i; i < 100; i++) {
             (,,, bool graduated,) = pad.curves(address(tok));
             if (graduated) break;
-            _buyFrom(address(uint160(0xF0000 + i)), 2 ether, 1);
+            _buyFrom(address(uint160(0xF0000 + i)), 2 ether);
         }
     }
 
@@ -57,12 +57,13 @@ contract MigrationForkTest is Test {
 
         vm.deal(REAL_AGENT, 1 ether);
         vm.prank(REAL_AGENT);
-        uint256 out = pad.buy{value: 0.5 ether}(address(tok), 0, 0, 0, "");
+        uint256 out = pad.buy{value: 0.5 ether}(address(tok), 0);
         assertGt(out, 0);
 
+        vm.deal(alice, 1 ether);
         vm.prank(alice);
         vm.expectRevert(Launchpad.NotAgent.selector);
-        pad.buy{value: 0.5 ether}(address(tok), 0, 0, 0, "");
+        pad.buy{value: 0.5 ether}(address(tok), 0);
     }
 
     function test_graduation_createsPancakePairAndBurnsLp() public {

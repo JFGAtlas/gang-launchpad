@@ -22,10 +22,13 @@ contract Migrator is IMigrator {
 
     error OnlyLaunchpad();
     error NothingToMigrate();
+    error ZeroAddress();
+    error WbnbTransferFailed();
 
     event Migrated(address indexed token, address indexed pair, uint256 tokenAmount, uint256 bnbAmount, uint256 lp);
 
     constructor(address factory_, address wbnb_, address launchpad_) {
+        if (factory_ == address(0) || wbnb_ == address(0) || launchpad_ == address(0)) revert ZeroAddress();
         factory = IPancakeFactory(factory_);
         wbnb = IWBNB(wbnb_);
         launchpad = launchpad_;
@@ -39,7 +42,7 @@ contract Migrator is IMigrator {
         if (pair == address(0)) pair = factory.createPair(token, address(wbnb));
 
         wbnb.deposit{value: msg.value}();
-        wbnb.transfer(pair, msg.value);
+        if (!wbnb.transfer(pair, msg.value)) revert WbnbTransferFailed();
         IERC20(token).safeTransfer(pair, tokenAmount);
 
         uint256 lp = IPancakePair(pair).mint(DEAD);
