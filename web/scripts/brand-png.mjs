@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core'
 import { readFileSync } from 'node:fs'
+const FONT = readFileSync('/Users/lazy/gang/web/public/fonts/fp-latin.woff2').toString('base64')
 const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--proxy-server=direct://', '--proxy-bypass-list=*'] })
 const page = await browser.newPage()
 for (const [name, w, h] of [['avatar', 512, 512], ['og', 1200, 630], ['lockup', 704, 160]]) {
