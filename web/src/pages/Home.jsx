@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, bnb } from '../api.js'
-import { useT } from '../i18n.jsx'
+import { useT, Lines } from '../i18n.jsx'
 import TokenTable from '../components/TokenTable.jsx'
 import Cmd from '../components/Cmd.jsx'
 import Win from '../components/Win.jsx'
@@ -18,7 +18,7 @@ export default function Home() {
       <section className="hero">
         <span className="tag">BNB Chain · Binance Agentic Wallet</span>
         <h1 className="cursor">{t('hero_1')}</h1>
-        <p>{t('hero_2')}</p>
+        <Lines k="hero_2" className="hero-lines" />
         <Cmd>npx skills add gangfun/gang-launchpad/skill</Cmd>
         <div className="stats">
           <div className="stat"><b>{stats.data?.tokens ?? '—'}</b><span>{t('stat_tokens')}</span></div>

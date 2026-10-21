@@ -69,7 +69,13 @@ button { cursor: pointer; }
 .hero h1 em { color: var(--yellow); font-style: normal; }
 .cursor::after { content: "█"; color: var(--yellow); animation: blink 1s steps(1) infinite; margin-left: 6px; }
 @keyframes blink { 50% { opacity: 0; } }
-.hero p { color: var(--text-2); max-width: 680px; margin-bottom: 20px; }
+.hero p { color: var(--text-2); max-width: 560px; margin-bottom: 20px; }
+.lines { list-style: none; color: var(--text-2); max-width: 560px; }
+.lines li { padding-left: 14px; position: relative; }
+.lines li::before { content: "›"; position: absolute; left: 0; color: var(--yellow); }
+.hero-lines { margin-bottom: 20px; }
+.doc .lines { margin-bottom: 8px; }
+.callout .lines { max-width: none; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: var(--line-2); border: 2px solid var(--line-2); box-shadow: 4px 4px 0 #000; margin: 28px 0 24px; }
 .stat { background: var(--s1); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-size: 24px; line-height: 28px; }
@@ -138,7 +144,7 @@ td.r, th.r { text-align: right; }
 .doc { max-width: 800px; padding-top: 40px; }
 .doc h1 { font-size: 36px; line-height: 48px; margin-bottom: 12px; }
 .doc h2 { font-size: 24px; line-height: 32px; color: var(--yellow); margin: 36px 0 10px; padding-top: 16px; border-top: 2px solid var(--line-2); }
-.doc p, .doc li { color: var(--text-2); margin-bottom: 8px; }
+.doc p, .doc li { color: var(--text-2); margin-bottom: 8px; max-width: 560px; }
 .doc li b, .doc p b { color: var(--text); font-weight: 500; }
 .doc ol { list-style: none; counter-reset: s; } .doc ol li { counter-increment: s; } .doc ol li::before { content: "0" counter(s) "  "; color: var(--text-3); }
 .doc .cmd { margin: 6px 0 12px; }

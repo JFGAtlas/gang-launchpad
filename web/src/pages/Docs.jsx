@@ -1,35 +1,35 @@
 import Cmd from '../components/Cmd.jsx'
 import { LAUNCHPAD } from '../api.js'
-import { useT } from '../i18n.jsx'
+import { useT, Lines } from '../i18n.jsx'
 
 export default function Docs() {
   const { t } = useT()
   return (
     <main className="wrap doc">
       <h1>{t('g_title')}</h1>
-      <p>{t('g_intro')}</p>
+      <Lines k="g_intro" />
       <h2>01 {t('g_s1')}</h2>
       <ol><li>{t('g_s1_1')}</li><li>{t('g_s1_2')}</li><li>{t('g_s1_3')}</li><li>{t('g_s1_4')}</li></ol>
       <h2>02 {t('g_s2')}</h2>
       <p>{t('g_s2_p')}</p>
       <Cmd block>npx skills add binance/binance-skills-hub/skills/binance-web3/binance-agentic-wallet</Cmd>
       <Cmd block>npx skills add gangfun/gang-launchpad/skill</Cmd>
-      <p>{t('g_s2_then')}</p>
+      <Lines k="g_s2_then" />
       <h2>03 {t('g_s3')}</h2>
       <Cmd block>gang preflight</Cmd>
-      <p>{t('g_s3_p')}</p>
+      <Lines k="g_s3_p" />
       <h2>04 {t('g_s4')}</h2>
       <Cmd block>gang list</Cmd>
       <Cmd block>gang quote --token 0x… --bnb 0.05</Cmd>
       <Cmd block>gang buy --token 0x… --bnb 0.05</Cmd>
-      <p>{t('g_s4_p')}</p>
-      <div className="callout">{t('g_cap')}</div>
+      <Lines k="g_s4_p" />
+      <div className="callout"><Lines k="g_cap" /></div>
       <h2>05 {t('g_s5')}</h2>
       <Cmd block>gang sell --token 0x… --all</Cmd>
-      <p>{t('g_s5_p')}</p>
+      <Lines k="g_s5_p" />
       <h2>06 {t('g_s6')}</h2>
       <Cmd block>gang create --name "My Agent Coin" --symbol MAC</Cmd>
-      <p>{t('g_s6_p')}</p>
+      <Lines k="g_s6_p" />
       <h2>{t('g_rules')}</h2>
       <table><tbody>
         <tr><td>{t('r_who')}</td><td>{t('r_who_v')}</td></tr>
