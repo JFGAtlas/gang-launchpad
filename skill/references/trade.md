@@ -61,9 +61,12 @@ Execute may return:
 { "status": "PENDING_CONFIRMATION", "pendingConfirmation": true, "txHash": null, "next": "..." }
 ```
 
-Binance asks the user to approve sells of non-whitelisted tokens in the App. Tell the user to approve it there, then
-poll `baw wallet tx-history --binanceChainId 56 --type confirmed --json` (newest first, `txType: contract_call`) for the
-hash and run `gang tx --hash <hash>`. Do not call execute again.
+Binance asks the user to approve sells of non-whitelisted tokens in the App. **The request expires within a few
+minutes**, so tell the user immediately to open Binance App → Wallet → Agentic Wallet and approve. Poll
+`baw wallet tx-lock --binanceChainId 56 --json`: `LOCKED` means still waiting, `UNLOCKED` means it was approved,
+rejected or expired. Then read `baw wallet tx-history --binanceChainId 56 --type confirmed --json` (newest first,
+`txType: contract_call`) for the hash and run `gang tx --hash <hash>`. If no new hash appears after unlock, the order
+expired: run the same `gang sell` again to create a fresh one. Do not call execute on the old requestId.
 
 ## `gang tx --hash <0x..>`
 
